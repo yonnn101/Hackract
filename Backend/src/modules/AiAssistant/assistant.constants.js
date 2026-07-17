@@ -1,0 +1,4 @@
+export const AiAssistantErrorCodes = {
+    NOT_FOUND: 'ASSISTANT_NOT_FOUND',
+    NAME_ALREADY_EXISTS: 'ASSISTANT_NAME_ALREADY_EXISTS'
+};

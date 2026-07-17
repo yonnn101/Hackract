@@ -1,0 +1,13 @@
+export const VerificationStatus = {
+  DRAFT: 'DRAFT',
+  SUBMITTED: 'SUBMITTED',
+  UNDER_REVIEW: 'UNDER_REVIEW',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+};
+
+export const HackerProfileErrorCodes = {
+  NOT_FOUND: 'HACKER_PROFILE_NOT_FOUND',
+  FORBIDDEN_UPDATE: 'HACKER_PROFILE_FORBIDDEN_UPDATE',
+};
+

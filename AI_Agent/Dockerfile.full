@@ -1,0 +1,26 @@
+# Dockerfile.full - Extended image with heavy tools and wordlists
+# Usage:
+# 1. Build minimal image: docker build -t hackract-agent:minimal -f Dockerfile .
+# 2. Build full image:    docker build -t hackract-agent:full -f Dockerfile.full .
+
+FROM hackract-agent:minimal
+
+# Install heavy tools and large wordlists
+# This layer is cached, so you don't have to re-download 1GB+ of data every time you change code
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    # Heavy Frameworks
+    metasploit-framework \
+    # Password Cracking (Heavy Dependencies)
+    john hashcat hydra medusa ncrack \
+    # Network Scanners
+    masscan \
+    # Large Wordlists (SecLists is ~1GB uncompressed)
+    wordlists seclists \
+    && rm -rf /var/lib/apt/lists/*
+
+# Decompress rockyou wordlist (standard in Kali)
+RUN gunzip -k /usr/share/wordlists/rockyou.txt.gz 2>/dev/null || true
+
+# Set environment variable to indicate full mode
+ENV AGENT_MODE=full

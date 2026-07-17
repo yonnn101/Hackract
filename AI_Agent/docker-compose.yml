@@ -1,0 +1,46 @@
+services:
+  hackract:
+    build:
+      context: .
+      # Default to minimal image for fast dev/builds
+      # Switch to 'Dockerfile.full' for production/engagements (includes Metasploit, etc.)
+      dockerfile: Dockerfile
+    container_name: hackract_ai_agent
+    image: hackract-ai:latest
+
+    # Port mapping for API
+    ports:
+      - "8008:8008" # API server
+
+    # Environment variables from .env file
+    env_file:
+      - .env
+
+    # Volume mounts for persistence
+    # Mount the current directory to /hackract so code changes apply immediately
+    volumes:
+      - .:/hackract
+      - ./memory:/hackract/memory
+      - ./logs:/hackract/logs
+      - ./work_dir:/hackract/work_dir
+      # - ./.env:/hackract/.env:ro
+
+      # Network mode - use host network for scanning
+      # WARNING: Only use this in isolated/test environments
+      # network_mode: "host"
+
+      # Or use bridge network (recommended for production)
+    networks:
+      - hackract_network
+
+    # Capabilities for networking tools
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+    # Default: Run API server (change to run_cli.py for CLI mode)
+    command: python3 run_api.py
+
+networks:
+  hackract_network:
+    driver: bridge

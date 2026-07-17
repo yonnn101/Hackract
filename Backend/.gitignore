@@ -1,0 +1,97 @@
+# =========================
+# Node.js / JavaScript
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# =========================
+# Build / Output
+# =========================
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# OS / System Files
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# =========================
+# IDE / Editors
+# =========================
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# =========================
+# Misc
+# =========================
+*.tgz
+*.zip
+*.tar.gz
+*.rar
+*.sqlite
+*.sqlite3
+
+# =========================
+# Prisma / Database
+# =========================
+prisma/migrations/
+*.db
+
+# =========================
+# Testing / Coverage
+# =========================
+coverage/
+*.lcov
+.nyc_output/
+
+# =========================
+# Optional: Docker
+# =========================
+docker-compose.override.yml
+Dockerfile.local
+
+# =========================
+# Optional: Secrets
+# =========================
+*.pem
+*.key
+*.crt

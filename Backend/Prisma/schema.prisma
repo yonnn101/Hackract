@@ -1,0 +1,744 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                          String                       @id @default(uuid())
+  email                       String                       @unique
+  passwordHash                String?
+  fullName                    String
+  handle                      String                       @unique
+  status                      UserStatus                   @default(PENDING)
+  isVerified                  Boolean                      @default(false)
+  trustScore                  Int                          @default(100)
+  provider                    String?
+  providerId                  String?
+  auth0Id                     String?                      @unique
+  avatar                      String?
+  emailVerifiedAt             DateTime?
+  lastLoginAt                 DateTime?
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  aiAgents                    AiAgent[]                    @relation("AiAgentUser")
+  auditLogs                   AuditLog[]
+  receivedInvitations         ChatInvitation[]             @relation("InvitationReceiver")
+  sentInvitations             ChatInvitation[]             @relation("InvitationSender")
+  conversations               ConversationParticipant[]
+  emailVerificationTokens     EmailVerificationToken[]
+  findingsReported            Finding[]                    @relation("FindingReporter")
+  findingComments             FindingComment[]
+  reviewedHackerProfiles      HackerProfile[]              @relation("HackerProfileReviewedBy")
+  hackerProfile               HackerProfile?
+  sentMessages                Message[]                    @relation("MessageSender")
+  nationalIDVerification      NationalIDVerification?
+  organizations               OrganizationMember[]
+  passwordResetTokens         PasswordResetToken[]
+  pentestsLed                 Pentest[]                    @relation("LeadPentester")
+  pentestCollaborators        PentestCollaborator[]
+  createdProjectAgreements    ProjectAgreement[]
+  projectAgreementAcceptances ProjectAgreementAcceptance[] @relation("ProjectAgreementSignatures")
+  receivedProjectInvitations  ProjectInvitation[]          @relation("ProjectInvitationReceiver")
+  sentProjectInvitations      ProjectInvitation[]          @relation("ProjectInvitationSender")
+  refreshTokens               RefreshToken[]
+  reviewsCreated              Review[]                     @relation("ReviewAuthor")
+  reviewsReceived             Review[]                     @relation("ReviewSubject")
+  transactions                Transaction[]
+  presence                    UserPresence?
+  userSignatures              UserSignature[]
+  wallet                      Wallet?
+  workflowHistories           WorkflowHistory[]
+  roles                       Role[]                       @relation("RoleToUser")
+
+  @@unique([provider, providerId])
+  @@index([email])
+  @@index([handle])
+  @@index([status])
+  @@index([provider])
+}
+
+model HackerProfile {
+  id                String             @id @default(uuid())
+  userId            String             @unique
+  bio               String
+  country           String?
+  yearsOfExperience Int?
+  primarySkills     String[]
+  certifications    String[]
+  portfolioLinks    String[]
+  specialization    String?
+  idDocumentNumber  String?
+  githubUsername    String?
+  linkedinProfile   String?
+  twitter           String?
+  status            VerificationStatus @default(DRAFT)
+  reviewNotes       String?
+  reviewedById      String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  employment        String[]
+  otherExperiences  String[]
+  education         String[]
+  reviewedBy        User?              @relation("HackerProfileReviewedBy", fields: [reviewedById], references: [id])
+  user              User               @relation(fields: [userId], references: [id])
+
+  @@index([status])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  type        RoleType @unique
+  description String?
+  permissions String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]   @relation("RoleToUser")
+
+  @@index([type])
+}
+
+model Organization {
+  id                 String               @id @default(uuid())
+  name               String
+  slug               String               @unique
+  description        String?
+  industry           String?
+  companyType        String?
+  foundedYear        String?
+  size               String?
+  website            String?
+  primaryEmail       String?
+  phoneNumber        String?
+  addressLine1       String?
+  addressLine2       String?
+  city               String?
+  subCity            String?
+  state              String?
+  postalCode         String?
+  country            String?
+  mapsLink           String?
+  timezone           String?
+  currency           String?
+  registrationNumber String?
+  taxId              String?
+  companySize        String?
+  licenseIssueDate   String?
+  licenseExpiryDate  String?
+  businessLicenseUrl String?
+  contactFirstName   String?
+  contactLastName    String?
+  contactJobTitle    String?
+  contactLinkedin    String?
+  verificationStatus VerificationStatus   @default(DRAFT)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  signatureData      String?
+  logoUrl            String?
+  auditLogs          AuditLog[]
+  members            OrganizationMember[]
+  pentests           Pentest[]
+
+  @@unique([name, slug])
+}
+
+model OrganizationMember {
+  id                String       @id @default(uuid())
+  role              String       @default("member")
+  organizationId    String
+  userId            String
+  canCreatePentests Boolean      @default(false)
+  canInviteMembers  Boolean      @default(false)
+  joinedAt          DateTime     @default(now())
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  user              User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model Pentest {
+  id                          String                       @id @default(uuid())
+  name                        String
+  description                 String?
+  status                      PentestStatus                @default(PLANNING)
+  organizationId              String?
+  leadPentesterId             String?
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  isPersonal                  Boolean                      @default(false)
+  endDate                     DateTime?
+  excludedAssets              String?
+  ipRanges                    String[]
+  startDate                   DateTime?
+  targetDomains               String[]
+  aiAgents                    AiAgent[]                    @relation("PentestAiAgent")
+  auditLogs                   AuditLog[]
+  findings                    Finding[]
+  leadPentester               User?                        @relation("LeadPentester", fields: [leadPentesterId], references: [id])
+  organization                Organization?                @relation(fields: [organizationId], references: [id])
+  collaborators               PentestCollaborator[]
+  projectAgreements           ProjectAgreement[]
+  projectAgreementAcceptances ProjectAgreementAcceptance[]
+  projectInvitations          ProjectInvitation[]
+  workflows                   Workflow[]
+  reviews                     Review[]
+
+  @@index([organizationId])
+  @@index([leadPentesterId])
+  @@index([status])
+}
+
+model PentestCollaborator {
+  id                String   @id @default(uuid())
+  pentestId         String
+  userId            String
+  role              String   @default("collaborator")
+  canEditFindings   Boolean  @default(false)
+  canManageSessions Boolean  @default(false)
+  addedAt           DateTime @default(now())
+  pentest           Pentest  @relation(fields: [pentestId], references: [id], onDelete: Cascade)
+  user              User     @relation(fields: [userId], references: [id])
+
+  @@unique([pentestId, userId])
+  @@index([pentestId])
+  @@index([userId])
+}
+
+model Finding {
+  id          String           @id @default(uuid())
+  title       String
+  description String?
+  severity      FindingSeverity  @default(LOW)
+  status        FindingStatus    @default(OPEN)
+  remediation   String?
+  proof         String?
+  affectedAsset String?
+  cvssScore     Float?
+  pentestId     String
+  reporterId    String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  pentest     Pentest          @relation(fields: [pentestId], references: [id], onDelete: Cascade)
+  reporter    User?            @relation("FindingReporter", fields: [reporterId], references: [id])
+  comments    FindingComment[]
+
+  @@index([pentestId])
+  @@index([severity])
+  @@index([status])
+}
+
+model FindingComment {
+  id        String   @id @default(uuid())
+  content   String
+  findingId String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  finding   Finding  @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([findingId])
+  @@index([userId])
+}
+
+model LegalAgreement {
+  id         String          @id @default(uuid())
+  title      String
+  content    String
+  version    String
+  isActive   Boolean         @default(true)
+  type       String          @default("terms_of_service")
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  signatures UserSignature[]
+
+  @@unique([title, version])
+}
+
+model UserSignature {
+  id            String         @id @default(uuid())
+  userId        String
+  agreementId   String
+  ipAddress     String?
+  userAgent     String?
+  signedAt      DateTime       @default(now())
+  signatureData String?
+  agreement     LegalAgreement @relation(fields: [agreementId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+
+  @@unique([userId, agreementId])
+  @@index([userId])
+  @@index([agreementId])
+}
+
+model AiAssistant {
+  id           String    @id @default(uuid())
+  name         String    @unique
+  model        String
+  systemPrompt String
+  capabilities String[]
+  temperature  Float?    @default(0.7)
+  maxTokens    Int?      @default(2000)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  aiAgents     AiAgent[]
+
+  @@index([model])
+}
+
+model AiAgent {
+  id          String      @id @default(uuid())
+  assistantId String
+  userId      String
+  pentestId   String?
+  name        String?
+  messages    Json?
+  tokensUsed  Int?        @default(0)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  assistant   AiAssistant @relation(fields: [assistantId], references: [id])
+  pentest     Pentest?    @relation("PentestAiAgent", fields: [pentestId], references: [id], onDelete: Cascade)
+  user        User        @relation("AiAgentUser", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([pentestId])
+  @@index([assistantId])
+}
+
+model AuditLog {
+  id             String        @id @default(uuid())
+  action         String
+  details        Json?
+  ipAddress      String?
+  userAgent      String?
+  organizationId String?
+  userId         String?
+  pentestId      String?
+  createdAt      DateTime      @default(now())
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  pentest        Pentest?      @relation(fields: [pentestId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([pentestId])
+  @@index([createdAt])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  expiresAt DateTime
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  expiresAt DateTime
+  used      Boolean   @default(false)
+  userId    String
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  expiresAt DateTime
+  revoked   Boolean   @default(false)
+  userAgent String?
+  ipAddress String?
+  userId    String
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model Workflow {
+  id        String            @id @default(uuid())
+  name      String            @default("Untitled Workflow")
+  nodes     Json              @default("[]")
+  edges     Json              @default("[]")
+  pentestId String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  pentest   Pentest           @relation(fields: [pentestId], references: [id], onDelete: Cascade)
+  history   WorkflowHistory[]
+
+  @@index([pentestId])
+}
+
+model WorkflowHistory {
+  id         String   @id @default(uuid())
+  workflowId String
+  userId     String
+  action     String
+  details    Json?
+  isSnapshot Boolean  @default(false)
+  snapshot   Json?
+  createdAt  DateTime @default(now())
+  message    String?
+  user       User     @relation(fields: [userId], references: [id])
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  rating    Int
+  comment   String?
+  authorId  String
+  subjectId String
+  pentestId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  author    User     @relation("ReviewAuthor", fields: [authorId], references: [id])
+  subject   User     @relation("ReviewSubject", fields: [subjectId], references: [id])
+  pentest   Pentest? @relation(fields: [pentestId], references: [id])
+
+  @@index([authorId])
+  @@index([subjectId])
+  @@index([pentestId])
+}
+
+model Citizen {
+  id                     String                  @id @default(uuid())
+  firstName              String?
+  middleName             String?
+  lastName               String?
+  fan                    String                  @unique
+  email                  String                  @unique
+  createdAt              DateTime                @default(now())
+  nationalIDVerification NationalIDVerification?
+  otpVerifications       OtpVerification[]
+}
+
+model OtpVerification {
+  id        String   @id @default(uuid())
+  citizenId String
+  otpHash   String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  citizen   Citizen  @relation(fields: [citizenId], references: [id], onDelete: Cascade)
+}
+
+model NationalIDVerification {
+  id                 String             @id @default(uuid())
+  userId             String             @unique
+  citizenId          String?            @unique
+  verificationStatus VerificationStatus @default(DRAFT)
+  verifiedAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  citizen            Citizen?           @relation(fields: [citizenId], references: [id])
+  user               User               @relation(fields: [userId], references: [id])
+
+  @@index([verificationStatus])
+}
+
+model Wallet {
+  id           String        @id @default(uuid())
+  balance      Float         @default(0)
+  userId       String        @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  currency     String        @default("USD")
+  transactions Transaction[]
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  type        String
+  amount      Float
+  description String?
+  status      String   @default("pending")
+  walletId    String?
+  userId      String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+  wallet      Wallet?  @relation(fields: [walletId], references: [id])
+
+  @@index([userId])
+  @@index([walletId])
+}
+
+model Conversation {
+  id                 String                    @id @default(uuid())
+  type               ConversationType          @default(DIRECT)
+  name               String?
+  avatar             String?
+  createdById        String?
+  lastMessageAt      DateTime?
+  lastMessagePreview String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  invitations        ChatInvitation[]
+  participants       ConversationParticipant[]
+  messages           Message[]
+
+  @@index([type])
+  @@index([lastMessageAt])
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversationId String
+  userId         String
+  role           String       @default("member")
+  lastReadAt     DateTime?
+  unreadCount    Int          @default(0)
+  isMuted        Boolean      @default(false)
+  joinedAt       DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@index([userId])
+}
+
+model Message {
+  id             String               @id @default(uuid())
+  content        String
+  type           MessageType          @default(TEXT)
+  conversationId String
+  senderId       String
+  replyToId      String?
+  fileUrl        String?
+  fileName       String?
+  fileSize       Int?
+  fileMime       String?
+  audioDuration  Int?
+  isEdited       Boolean              @default(false)
+  deletedAt      DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  conversation   Conversation         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo        Message?             @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies        Message[]            @relation("MessageReplies")
+  sender         User                 @relation("MessageSender", fields: [senderId], references: [id])
+  readBy         MessageReadReceipt[]
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+model MessageReadReceipt {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+}
+
+model ChatInvitation {
+  id             String           @id @default(uuid())
+  senderId       String
+  receiverId     String
+  conversationId String
+  message        String
+  status         InvitationStatus @default(PENDING)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  receiver       User             @relation("InvitationReceiver", fields: [receiverId], references: [id])
+  sender         User             @relation("InvitationSender", fields: [senderId], references: [id])
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+}
+
+model UserPresence {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  isOnline   Boolean  @default(false)
+  lastSeenAt DateTime @default(now())
+  socketId   String?
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([isOnline])
+}
+
+model ProjectInvitation {
+  id          String                  @id @default(uuid())
+  status      ProjectInvitationStatus @default(PENDING)
+  message     String?
+  pentestId   String
+  hackerId    String
+  invitedById String
+  agreementSource   String?
+  agreementLegalId  String?
+  agreementTitle    String?
+  agreementFileUrl  String?
+  agreementFileName String?
+  agreementFileSize Int?
+  agreementFileMime String?
+  agreementSentAt   DateTime?
+  signedFileUrl     String?
+  signedFileName    String?
+  signedFileSize    Int?
+  signedFileMime    String?
+  signedAt          DateTime?
+  expiresAt   DateTime?
+  respondedAt DateTime?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  hacker      User                    @relation("ProjectInvitationReceiver", fields: [hackerId], references: [id])
+  invitedBy   User                    @relation("ProjectInvitationSender", fields: [invitedById], references: [id])
+  pentest     Pentest                 @relation(fields: [pentestId], references: [id], onDelete: Cascade)
+
+  @@index([pentestId])
+  @@index([hackerId])
+  @@index([invitedById])
+  @@index([status])
+}
+
+model ProjectAgreement {
+  id              String                       @id @default(uuid())
+  pentestId       String
+  version         Int
+  title           String
+  body            String
+  scopeSummary    String?
+  allowedActions  String?
+  confidentiality String?
+  legalLiability  String?
+  isActive        Boolean                      @default(true)
+  createdById     String
+  createdAt       DateTime                     @default(now())
+  createdBy       User                         @relation(fields: [createdById], references: [id])
+  pentest         Pentest                      @relation(fields: [pentestId], references: [id], onDelete: Cascade)
+  acceptances     ProjectAgreementAcceptance[]
+
+  @@unique([pentestId, version])
+}
+
+model ProjectAgreementAcceptance {
+  id            String           @id @default(uuid())
+  agreementId   String
+  hackerId      String
+  pentestId     String
+  version       Int
+  status        String           @default("PENDING")
+  ipAddress     String?
+  userAgent     String?
+  signedAt      DateTime?
+  signatureData String?
+  createdAt     DateTime         @default(now())
+  agreement     ProjectAgreement @relation(fields: [agreementId], references: [id])
+  hacker        User             @relation("ProjectAgreementSignatures", fields: [hackerId], references: [id])
+  pentest       Pentest          @relation(fields: [pentestId], references: [id])
+
+  @@unique([agreementId, hackerId])
+  @@index([pentestId, hackerId])
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum PentestStatus {
+  PLANNING
+  IN_PROGRESS
+  REPORTING
+  CLOSED
+}
+
+enum FindingSeverity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum FindingStatus {
+  OPEN
+  TRIAGED
+  FIXED
+  PENDING_RETEST
+  VALIDATED
+  REOPENED
+  ACCEPTED_RISK
+}
+
+enum RoleType {
+  ORG_ADMIN
+  PROJECT_ADMIN
+  PENTESTER
+}
+
+enum VerificationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  VOICE
+  VIDEO
+  SYSTEM
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum ProjectInvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  REVOKED
+  EXPIRED
+}

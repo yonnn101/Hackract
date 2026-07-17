@@ -1,0 +1,8 @@
+# Root gitignore for Hackract
+# Ignore local environment and build artifacts
+node_modules/
+dist/
+.env
+
+# Ignore gguf model files
+*.gguf

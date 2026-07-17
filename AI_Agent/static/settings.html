@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - HackrAct AI Agent</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            color: #00ff88;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .nav-btn {
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+            text-decoration: none;
+            transition: all 0.3s;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #00ff88;
+        }
+
+        .settings-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .settings-card h2 {
+            font-size: 20px;
+            color: #00ff88;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ccc;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #00ff88;
+        }
+
+        .form-group input::placeholder {
+            color: #666;
+        }
+
+        .form-group select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+
+        .form-help {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+        }
+
+        .toggle-label {
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.2);
+            transition: 0.4s;
+            border-radius: 26px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.toggle-slider {
+            background-color: #00ff88;
+        }
+
+        input:checked+.toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 255, 136, 0.4);
+        }
+
+        .btn-secondary {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+        }
+
+        .alert-error {
+            background: rgba(255, 77, 77, 0.2);
+            border: 1px solid rgba(255, 77, 77, 0.3);
+            color: #ff4d4d;
+        }
+
+        .alert-info {
+            background: rgba(100, 150, 255, 0.2);
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            color: #6496ff;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚙️ Settings</h1>
+            <p>Configure your HackrAct AI Agent</p>
+        </div>
+
+        <div class="nav">
+            <a href="/" class="nav-btn">← Back to Chat</a>
+        </div>
+
+        <div id="alertContainer"></div>
+
+        <!-- LLM Configuration -->
+        <div class="settings-card">
+            <h2>🤖 LLM Configuration</h2>
+
+            <div class="form-group">
+                <label for="llmProvider">LLM Provider</label>
+                <select id="llmProvider" onchange="updateModelDefaults()">
+                    <option value="openrouter">OpenRouter</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="github">GitHub Models (Free)</option>
+                    <option value="nvidia_nim">NVIDIA NIM</option>
+                    <option value="ollama">Ollama (Local)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="apiKey">API Key</label>
+                <input type="password" id="apiKey" placeholder="Enter your API key (leave empty for Ollama)" />
+                <div class="form-help" id="apiKeyHelp">Your API key is stored securely and never shared</div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="chatModel">Chat Model</label>
+                    <input type="text" id="chatModel" placeholder="e.g., anthropic/claude-3.5-sonnet" />
+                    <div class="form-help">Main reasoning model</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="utilityModel">Utility Model</label>
+                    <input type="text" id="utilityModel" placeholder="e.g., anthropic/claude-3-haiku" />
+                    <div class="form-help">For quick tasks</div>
+                </div>
+            </div>
+
+            <div class="form-group" id="customEndpointGroup" style="display: none;">
+                <label for="customEndpoint">Custom API Endpoint</label>
+                <input type="text" id="customEndpoint" placeholder="https://api.example.com/v1" />
+                <div class="form-help">Custom OpenAI-compatible endpoint</div>
+            </div>
+
+            <button class="btn-secondary" onclick="testConnection()" id="testConnectionBtn">
+                🔌 Test Connection
+            </button>
+        </div>
+
+        <!-- Memory Configuration -->
+        <div class="settings-card">
+            <h2>🧠 Memory Configuration</h2>
+
+            <div class="toggle-container">
+                <div class="toggle-label">Enable Memory System</div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="memoryEnabled" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label for="collectionName">Memory Collection Name</label>
+                <input type="text" id="collectionName" placeholder="hackract_memory" />
+                <div class="form-help">Database collection for storing memories</div>
+            </div>
+
+            <div class="form-group">
+                <label for="embeddingModel">Embedding Model</label>
+                <input type="text" id="embeddingModel" placeholder="text-embedding-3-small" />
+                <div class="form-help">Model used for embedding memories</div>
+            </div>
+
+            <div class="grid-2">
+                <button class="btn-secondary" onclick="clearMemories()">
+                    🗑️ Clear All Memories
+                </button>
+                <button class="btn-secondary" onclick="viewMemories()">
+                    👁️ View Memories
+                </button>
+            </div>
+        </div>
+
+        <!-- Advanced Settings -->
+        <div class="settings-card">
+            <h2>🔧 Advanced Settings</h2>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="temperature">Temperature</label>
+                    <input type="number" id="temperature" min="0" max="2" step="0.1" value="0.7" />
+                    <div class="form-help">0.0 = Focused, 2.0 = Creative</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="maxTokens">Max Tokens</label>
+                    <input type="number" id="maxTokens" min="512" max="32000" step="512" value="4096" />
+                    <div class="form-help">Maximum response length</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Save Button -->
+        <button class="btn-primary" onclick="saveSettings()">
+            💾 Save Settings
+        </button>
+    </div>
+
+    <script>
+        const API_URL = '';
+
+        // Show provider-specific fields
+        document.getElementById('llmProvider').addEventListener('change', function () {
+            const customGroup = document.getElementById('customEndpointGroup');
+            const apiKeyInput = document.getElementById('apiKey');
+            const chatModelInput = document.getElementById('chatModel');
+            const utilityModelInput = document.getElementById('utilityModel');
+
+            if (this.value === 'custom') {
+                customGroup.style.display = 'block';
+            } else {
+                customGroup.style.display = 'none';
+            }
+
+            if (this.value === 'ollama') {
+                apiKeyInput.placeholder = 'No API key required for Ollama';
+                apiKeyInput.required = false;
+            } else if (this.value === 'gemini') {
+                apiKeyInput.placeholder = 'Enter your Google Gemini API Key';
+                apiKeyInput.required = true;
+                chatModelInput.value = 'gemini/gemini-1.5-pro';
+                utilityModelInput.value = 'gemini/gemini-1.5-flash';
+            } else if (this.value === 'github') {
+                apiKeyInput.placeholder = 'Enter your GitHub Personal Access Token';
+                apiKeyInput.required = true;
+                chatModelInput.value = 'gpt-4o';
+                utilityModelInput.value = 'gpt-4o-mini';
+            } else if (this.value === 'nvidia_nim') {
+                apiKeyInput.placeholder = 'Enter your NVIDIA API Key';
+                apiKeyInput.required = true;
+                chatModelInput.value = 'meta/llama-3.1-70b-instruct';
+                utilityModelInput.value = 'meta/llama-3.1-8b-instruct';
+            } else if (this.value === 'anthropic') {
+                apiKeyInput.placeholder = 'Enter your Anthropic API Key';
+                apiKeyInput.required = true;
+                chatModelInput.value = 'anthropic/claude-3.5-sonnet';
+                utilityModelInput.value = 'anthropic/claude-3-haiku';
+            } else if (this.value === 'openai') {
+                apiKeyInput.placeholder = 'Enter your OpenAI API Key';
+                apiKeyInput.required = true;
+                chatModelInput.value = 'gpt-4o';
+                utilityModelInput.value = 'gpt-3.5-turbo';
+            } else {
+                apiKeyInput.placeholder = 'Enter your API key';
+                apiKeyInput.required = true;
+            }
+        });
+
+        // Show alert
+        function showAlert(message, type = 'info') {
+            const alertContainer = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alertContainer.appendChild(alert);
+
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+
+        // Load current settings
+        async function loadSettings() {
+            try {
+                const response = await fetch(`${API_URL}/api/settings`);
+                if (!response.ok) throw new Error('Failed to load settings');
+
+                const settings = await response.json();
+
+                // Populate LLM settings
+                document.getElementById('llmProvider').value = settings.llm_provider || 'openrouter';
+                document.getElementById('apiKey').value = settings.api_key || '';
+                document.getElementById('chatModel').value = settings.chat_model || '';
+                document.getElementById('utilityModel').value = settings.utility_model || '';
+                document.getElementById('customEndpoint').value = settings.custom_endpoint || '';
+
+                // Populate memory settings
+                document.getElementById('memoryEnabled').checked = settings.memory_enabled !== false;
+                document.getElementById('collectionName').value = settings.collection_name || 'hackract_memory';
+                document.getElementById('embeddingModel').value = settings.embedding_model || 'text-embedding-3-small';
+
+                // Populate advanced settings
+                document.getElementById('temperature').value = settings.temperature || 0.7;
+                document.getElementById('maxTokens').value = settings.max_tokens || 4096;
+
+                // Trigger provider change to show/hide custom endpoint
+                document.getElementById('llmProvider').dispatchEvent(new Event('change'));
+
+            } catch (error) {
+                console.error('Error loading settings:', error);
+                showAlert('Failed to load settings. Using defaults.', 'error');
+            }
+        }
+
+        // Test connection
+        async function testConnection() {
+            const btn = document.getElementById('testConnectionBtn');
+            const originalText = btn.textContent;
+            btn.textContent = 'Testing...';
+            btn.disabled = true;
+
+            const settings = {
+                llm_provider: document.getElementById('llmProvider').value,
+                api_key: document.getElementById('apiKey').value,
+                chat_model: document.getElementById('chatModel').value,
+                custom_endpoint: document.getElementById('customEndpoint').value
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/api/test_connection`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) throw new Error(data.detail || 'Connection failed');
+
+                showAlert(`Success! Response: ${data.response}`, 'success');
+            } catch (error) {
+                console.error('Connection test error:', error);
+                showAlert(`Error: ${error.message}`, 'error');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Save settings
+        async function saveSettings() {
+            const settings = {
+                llm_provider: document.getElementById('llmProvider').value,
+                api_key: document.getElementById('apiKey').value,
+                chat_model: document.getElementById('chatModel').value,
+                utility_model: document.getElementById('utilityModel').value,
+                custom_endpoint: document.getElementById('customEndpoint').value,
+                memory_enabled: document.getElementById('memoryEnabled').checked,
+                collection_name: document.getElementById('collectionName').value,
+                embedding_model: document.getElementById('embeddingModel').value,
+                temperature: parseFloat(document.getElementById('temperature').value),
+                max_tokens: parseInt(document.getElementById('maxTokens').value)
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/api/settings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+
+                if (!response.ok) throw new Error('Failed to save settings');
+
+                const data = await response.json();
+                showAlert('Settings saved successfully! Changes will take effect on next request.', 'success');
+
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                showAlert('Failed to save settings: ' + error.message, 'error');
+            }
+        }
+
+        // Clear memories
+        async function clearMemories() {
+            if (!confirm('Are you sure you want to clear all memories? This cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/memory/clear`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) throw new Error('Failed to clear memories');
+
+                showAlert('All memories cleared successfully!', 'success');
+
+            } catch (error) {
+                console.error('Error clearing memories:', error);
+                showAlert('Failed to clear memories: ' + error.message, 'error');
+            }
+        }
+
+        // View memories
+        function viewMemories() {
+            window.open(`${API_URL}/api/memory/list`, '_blank');
+        }
+
+        // Update model defaults based on provider
+        function updateModelDefaults() {
+            const provider = document.getElementById('llmProvider').value;
+            const chatModelInput = document.getElementById('chatModel');
+            const utilityModelInput = document.getElementById('utilityModel');
+            const apiKeyInput = document.getElementById('apiKey');
+            const helpText = document.getElementById('apiKeyHelp');
+
+            switch (provider) {
+                case 'github':
+                    chatModelInput.value = 'gpt-4o';
+                    utilityModelInput.value = 'gpt-4o-mini';
+                    apiKeyInput.placeholder = 'Enter your GitHub Personal Access Token';
+                    helpText.innerHTML = 'Get a token here: <a href="https://github.com/settings/tokens" target="_blank">GitHub Settings</a> (No scopes needed)';
+                    break;
+                case 'nvidia_nim':
+                    chatModelInput.value = 'meta/llama-3.1-70b-instruct';
+                    utilityModelInput.value = 'meta/llama-3.1-8b-instruct';
+                    apiKeyInput.placeholder = 'Enter your NVIDIA API Key';
+                    helpText.innerHTML = 'Use a key from the NVIDIA API catalog for NIM-hosted models.';
+                    break;
+                case 'gemini':
+                    chatModelInput.value = 'gemini/gemini-1.5-pro';
+                    utilityModelInput.value = 'gemini/gemini-1.5-flash';
+                    apiKeyInput.placeholder = 'Enter your Google Gemini API Key';
+                    helpText.innerHTML = '';
+                    break;
+                case 'anthropic':
+                    chatModelInput.value = 'anthropic/claude-3.5-sonnet';
+                    utilityModelInput.value = 'anthropic/claude-3-haiku';
+                    apiKeyInput.placeholder = 'Enter your Anthropic API Key';
+                    helpText.innerHTML = '';
+                    break;
+                case 'openai':
+                    chatModelInput.value = 'gpt-4o';
+                    utilityModelInput.value = 'gpt-3.5-turbo';
+                    apiKeyInput.placeholder = 'Enter your OpenAI API Key';
+                    helpText.innerHTML = '';
+                    break;
+                case 'ollama':
+                    chatModelInput.value = '';
+                    utilityModelInput.value = '';
+                    apiKeyInput.placeholder = 'No API key required for Ollama';
+                    helpText.innerHTML = '';
+                    break;
+                default:
+                    chatModelInput.value = '';
+                    utilityModelInput.value = '';
+                    apiKeyInput.placeholder = 'Enter your API key';
+                    helpText.innerHTML = '';
+                    break;
+            }
+        }
+
+        // Initialize
+        loadSettings();
+    </script>
+</body>
+
+</html>

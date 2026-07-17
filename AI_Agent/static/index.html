@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HackrAct AI Agent - Web Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 900px;
+            height: 90vh;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #00ff88;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 5px;
+        }
+
+        .status.online {
+            color: #00ff88;
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            display: flex;
+            gap: 10px;
+            animation: fadeIn 0.3s;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+
+        .message.assistant .message-content {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .message.system .message-content {
+            background: rgba(255, 165, 0, 0.2);
+            border: 1px solid rgba(255, 165, 0, 0.3);
+            font-style: italic;
+            max-width: 100%;
+            text-align: center;
+        }
+
+        .input-container {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 10px;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        #messageInput:focus {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #00ff88;
+        }
+
+        #sendButton {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        #sendButton:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 255, 136, 0.4);
+        }
+
+        #sendButton:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #stopButton {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #ff4b4b, #cc0000);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+            display: none;
+            /* Hidden by default */
+        }
+
+        #stopButton:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 75, 75, 0.4);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #00ff88;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .code-block {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 3px solid #00ff88;
+            margin: 8px 0;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .timestamp {
+            font-size: 10px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+<<<<<<< HEAD
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #chatView {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        #settingsView {
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 1rem 2rem;
+            color-scheme: dark;
+            background: var(--bg);
+        }
+
+        #settingsView.visible {
+            display: flex;
+        }
+
+        #chatView.hidden {
+            display: none !important;
+        }
+
+        .settings-card {
+            background: var(--bg-secondary);
+            border-radius: 0.75rem;
+            border: 1px solid var(--border);
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .settings-card h2 {
+            font-size: 0.9375rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 1rem;
+            letter-spacing: -0.02em;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.35rem;
+            color: var(--text-muted);
+            font-size: 0.8125rem;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.625rem 0.875rem;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            color: var(--text);
+            font-size: 0.875rem;
+            font-family: inherit;
+        }
+
+        .form-group select {
+            cursor: pointer;
+        }
+
+        .form-group select option,
+        .form-group select optgroup {
+            background-color: #2b2b32;
+            color: var(--text);
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: rgba(16, 163, 127, 0.5);
+            box-shadow: 0 0 0 2px rgba(16, 163, 127, 0.1);
+        }
+
+        .form-help {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+        }
+
+        .toggle-label {
+            font-size: 0.875rem;
+            color: var(--text);
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            transition: 0.2s;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background: #fff;
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+
+        input:checked + .toggle-slider {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--accent);
+            border: none;
+            border-radius: 0.5rem;
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            margin-top: 0.5rem;
+            transition: background 0.15s;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            padding: 0.5rem 0.875rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            color: var(--text);
+            cursor: pointer;
+            margin-right: 0.5rem;
+            margin-top: 0.5rem;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            transition: background 0.15s;
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .alert {
+            padding: 0.625rem 0.875rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.8125rem;
+        }
+
+        .alert-success {
+            background: rgba(16, 163, 127, 0.15);
+            border: 1px solid rgba(16, 163, 127, 0.35);
+            color: #6ee7b7;
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: #fca5a5;
+        }
+
+        .alert-info {
+            background: rgba(59, 130, 246, 0.12);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #93c5fd;
+        }
+
+        /* —— ProcessGroup (agent task hierarchy) —— */
+        :root {
+            --pg-gen: #22d3ee;
+            --pg-exe: #a78bfa;
+            --pg-end: #34d399;
+            --pg-reason: #94a3b8;
+            --pg-line: rgba(255, 255, 255, 0.12);
+        }
+
+        .pg-toolbar-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .pg-mode-select {
+            font-size: 0.6875rem;
+            padding: 0.35rem 0.5rem;
+            max-width: 9rem;
+            background: var(--bg-secondary);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 0.375rem;
+            cursor: pointer;
+        }
+
+        .pg-group {
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            background: var(--bg-secondary);
+            margin-bottom: 1rem;
+            overflow: hidden;
+            animation: fadeIn 0.25s ease;
+        }
+
+        .pg-group-header {
+            width: 100%;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border: none;
+            color: var(--text);
+            font-family: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .pg-group-header:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .pg-group-chevron {
+            flex-shrink: 0;
+            width: 1.25rem;
+            color: var(--text-muted);
+            font-size: 0.65rem;
+            margin-top: 0.2rem;
+        }
+
+        .pg-group-header-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .pg-group-title {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.35rem;
+        }
+
+        .pg-group-meta {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem 0.75rem;
+            font-size: 0.6875rem;
+            color: var(--text-muted);
+        }
+
+        .pg-group-badge {
+            padding: 0.15rem 0.45rem;
+            border-radius: 0.25rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            font-size: 0.625rem;
+        }
+
+        .pg-badge-gen {
+            background: rgba(34, 211, 238, 0.15);
+            color: var(--pg-gen);
+            border: 1px solid rgba(34, 211, 238, 0.35);
+        }
+
+        .pg-badge-exe {
+            background: rgba(167, 139, 250, 0.15);
+            color: var(--pg-exe);
+            border: 1px solid rgba(167, 139, 250, 0.35);
+        }
+
+        .pg-badge-end {
+            background: rgba(52, 211, 153, 0.12);
+            color: var(--pg-end);
+            border: 1px solid rgba(52, 211, 153, 0.35);
+        }
+
+        .pg-group-body.pg-group-body-collapsed {
+            display: none;
+        }
+
+        .pg-track-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem 0.4rem;
+            border-bottom: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.18);
+        }
+
+        .pg-track-toolbar-label {
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .pg-track-select {
+            flex: 1;
+            max-width: 16rem;
+            min-width: 0;
+            font-size: 0.75rem;
+            padding: 0.4rem 0.55rem;
+            background: var(--bg-secondary);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 0.375rem;
+            cursor: pointer;
+            color-scheme: dark;
+        }
+
+        .pg-track-panels {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            padding: 0.5rem 0.35rem 0.75rem;
+        }
+
+        .pg-track-panel[hidden] {
+            display: none !important;
+        }
+
+        .pg-track-panel {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            background: rgba(0, 0, 0, 0.14);
+            overflow: hidden;
+        }
+
+        .pg-track-panel-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            padding: 0.45rem 0.65rem;
+            background: rgba(255, 255, 255, 0.04);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .pg-track-panel-title {
+            font-size: 0.6875rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .pg-track-panel-hint {
+            font-size: 0.625rem;
+            color: var(--text-muted);
+            opacity: 0.88;
+        }
+
+        [data-pg-track-panel="thinking"] .pg-track-panel-title {
+            color: var(--pg-gen);
+        }
+
+        [data-pg-track-panel="tools"] .pg-track-panel-title {
+            color: var(--pg-exe);
+        }
+
+        .pg-steps {
+            position: relative;
+            padding: 0.5rem 0.75rem 1rem 0.25rem;
+            margin-left: 0.5rem;
+            border-left: 2px solid var(--pg-line);
+        }
+
+        .pg-step {
+            position: relative;
+            display: flex;
+            gap: 0;
+            margin-bottom: 0.75rem;
+        }
+
+        .pg-step:last-child {
+            margin-bottom: 0;
+        }
+
+        .pg-step-connector {
+            position: absolute;
+            left: -0.55rem;
+            top: 1.1rem;
+            width: 0.55rem;
+            height: 2px;
+            background: var(--pg-line);
+        }
+
+        .pg-step-inner {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .pg-step-toolbar,
+        .pg-step-toolbar.pg-step-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.35rem;
+        }
+
+        .pg-step-icon {
+            font-size: 0.9rem;
+            opacity: 0.95;
+        }
+
+        .pg-icon-gen {
+            color: var(--pg-gen);
+        }
+
+        .pg-icon-exe {
+            color: var(--pg-exe);
+        }
+
+        .pg-icon-reason {
+            color: var(--pg-reason);
+        }
+
+        .pg-step-kind {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .pg-step-tag {
+            font-size: 0.625rem;
+            font-weight: 700;
+            padding: 0.1rem 0.35rem;
+            border-radius: 0.2rem;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-muted);
+        }
+
+        .pg-step-gen .pg-step-tag {
+            color: var(--pg-gen);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+        }
+
+        .pg-step-exe .pg-step-tag {
+            color: var(--pg-exe);
+            border: 1px solid rgba(167, 139, 250, 0.3);
+        }
+
+        .pg-tag-muted {
+            opacity: 0.85;
+        }
+
+        .pg-info-btn {
+            margin-left: auto;
+            padding: 0.15rem 0.4rem;
+            font-size: 0.75rem;
+            line-height: 1;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 0.25rem;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .pg-info-btn:hover {
+            color: var(--text);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .pg-step-body {
+            padding-left: 0.1rem;
+        }
+
+        .pg-step-body-collapsed {
+            display: none !important;
+        }
+
+        .pg-gen-stream {
+            font-size: 0.8125rem;
+            line-height: 1.55;
+            color: var(--text);
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: min(45vh, 22rem);
+            overflow-y: auto;
+        }
+
+        .pg-reason-bubble {
+            font-size: 0.875rem;
+            line-height: 1.55;
+            font-style: italic;
+            color: #cbd5e1;
+            background: rgba(148, 163, 184, 0.08);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 0.65rem;
+            padding: 0.65rem 0.85rem;
+        }
+
+        .pg-terminal {
+            border-radius: 0.5rem;
+            overflow: hidden;
+            border: 1px solid rgba(167, 139, 250, 0.25);
+            background: #0c0c0f;
+        }
+
+        .pg-terminal-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.35rem 0.65rem;
+            background: #16161c;
+            border-bottom: 1px solid rgba(167, 139, 250, 0.15);
+        }
+
+        .pg-terminal-label {
+            font-size: 0.625rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--pg-exe);
+            font-weight: 600;
+        }
+
+        .pg-copy-btn {
+            font-size: 0.6875rem;
+            padding: 0.2rem 0.5rem;
+            background: rgba(167, 139, 250, 0.15);
+            border: 1px solid rgba(167, 139, 250, 0.35);
+            border-radius: 0.25rem;
+            color: #e9d5ff;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .pg-copy-btn:hover {
+            background: rgba(167, 139, 250, 0.25);
+        }
+
+        .pg-terminal-body {
+            margin: 0;
+            padding: 0.75rem 1rem;
+            font-size: 0.75rem;
+            line-height: 1.45;
+            color: #e4e4e7;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: min(55vh, 28rem);
+            overflow-y: auto;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        }
+
+        .pg-terminal-body .pg-terminal-stderr {
+            color: #f87171;
+        }
+
+        .pg-utility-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            padding: 0.25rem 0;
+        }
+
+        .pg-utility-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            flex-shrink: 0;
+            opacity: 0.6;
+        }
+
+        .pg-utility-text {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .pg-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .pg-modal[hidden] {
+            display: none !important;
+        }
+
+        .pg-modal-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(4px);
+        }
+
+        .pg-modal-panel {
+            position: relative;
+            width: 100%;
+            max-width: 42rem;
+            max-height: min(85vh, 40rem);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+        }
+
+        .pg-modal-header-compact {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.5rem 0.75rem;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .pg-modal-header-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .pg-modal-header-main h3 {
+            font-size: 0.9375rem;
+            font-weight: 600;
+            margin: 0 0 0.35rem;
+        }
+
+        .pg-modal-badges {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .pg-modal-badge {
+            display: inline-block;
+            padding: 0.15rem 0.45rem;
+            border-radius: 6px;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+
+        .pg-modal-badge-mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            text-transform: none;
+            letter-spacing: 0;
+            font-weight: 500;
+            font-size: 0.75rem;
+            color: var(--text);
+        }
+
+        .pg-modal-header-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .pg-modal-action-btn {
+            padding: 0.35rem 0.55rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: var(--bg-tertiary);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-family: inherit;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+        .pg-modal-action-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .pg-modal-action-btn.active {
+            background: rgba(25, 195, 125, 0.15);
+            border-color: #19c37d;
+            color: #19c37d;
+        }
+
+        .pg-modal-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.25rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0.25rem 0.35rem;
+            border-radius: 4px;
+        }
+
+        .pg-modal-close:hover {
+            color: var(--text);
+            background: var(--bg-tertiary);
+        }
+
+        .pg-modal-body {
+            padding: 1rem;
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .pg-modal-section-title {
+            font-size: 0.6875rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin: 0.75rem 0 0.35rem;
+        }
+
+        .pg-modal-section-title:first-child {
+            margin-top: 0;
+        }
+
+        [data-pg-view-formatted] > .pg-modal-section-title:first-of-type {
+            margin-top: 0;
+        }
+
+        .pg-modal-content-text {
+            color: var(--text);
+            line-height: 1.55;
+            font-size: 0.875rem;
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .pg-modal-kvp {
+            margin-top: 0.75rem;
+            padding: 0.65rem 0.75rem;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+        }
+
+        .pg-modal-kvp-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-bottom: 0.35rem;
+        }
+
+        .pg-modal-kvp-head .pg-modal-section-title {
+            margin: 0;
+        }
+
+        .pg-modal-pre {
+            margin: 0;
+            padding: 0.75rem;
+            background: #0c0c0f;
+            border-radius: 0.5rem;
+            font-size: 0.6875rem;
+            line-height: 1.4;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #d4d4d8;
+            border: 1px solid var(--border);
+        }
+
+        .pg-modal-stats-line {
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        .pg-modal-toast {
+            position: absolute;
+            bottom: 0.75rem;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 0.35rem 0.85rem;
+            background: rgba(25, 195, 125, 0.95);
+            color: #0a0a0a;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 999px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 2;
+        }
+
+        .pg-modal-toast.pg-modal-toast-visible {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            .container {
+                border-left: none;
+                border-right: none;
+            }
+            .pg-mode-select {
+                max-width: 7rem;
+            }
+=======
+            background: rgba(255, 255, 255, 0.3);
+>>>>>>> origin/main
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1> HackrAct AI Agent</h1>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="status" id="status">● Connecting...</div>
+                <a href="settings.html"
+                    style="padding: 8px 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: #fff; text-decoration: none; font-size: 12px; transition: all 0.3s;"
+                    onmouseover="this.style.background='rgba(255,255,255,0.2)'"
+                    onmouseout="this.style.background='rgba(255,255,255,0.1)'">⚙️ Settings</a>
+            </div>
+        </div>
+
+        <div class="chat-container" id="chatContainer">
+            <div class="message system">
+                <div class="message-content">
+                    Welcome to HackrAct AI Agent - Your AI-powered web application penetration tester.
+                    <br>Ask me to scan websites, test for vulnerabilities, or install security tools!
+                </div>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <input type="text" id="messageInput"
+                placeholder="Ask the agent anything... (e.g., 'Scan localhost for vulnerabilities')">
+            <button id="stopButton">Stop</button>
+            <button id="sendButton">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // Use relative URL so it works on any host/port
+        const API_URL = '';
+        const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const WS_URL = `${WS_PROTOCOL}//${window.location.host}`;
+
+        let session_id = localStorage.getItem('hackract_session_id');
+        if (!session_id) {
+            session_id = 'session_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('hackract_session_id', session_id);
+        }
+
+        let isProcessing = false;
+        let socket = null;
+
+        const chatContainer = document.getElementById('chatContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const stopButton = document.getElementById('stopButton');
+        const statusElement = document.getElementById('status');
+
+        // Initialize WebSocket
+        function connectWebSocket() {
+            socket = new WebSocket(`${WS_URL}/ws/${session_id}`);
+
+            socket.onopen = () => {
+                console.log('WebSocket connected');
+                statusElement.textContent = '● Online';
+                statusElement.classList.add('online');
+            };
+
+            socket.onclose = () => {
+                console.log('WebSocket disconnected');
+                statusElement.textContent = '● Offline';
+                statusElement.classList.remove('online');
+                // Try to reconnect after 5 seconds
+                setTimeout(connectWebSocket, 5000);
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+        }
+
+        function handleWebSocketMessage(data) {
+            // Remove thinking message if it exists
+            if (data.type === 'response' || data.type === 'error') {
+                document.getElementById('thinking')?.remove();
+                isProcessing = false;
+                sendButton.style.display = 'block';
+                stopButton.style.display = 'none';
+                messageInput.focus();
+            }
+
+            if (data.type === 'response') {
+                addMessage('assistant', data.content);
+            } else if (data.type === 'error') {
+                addMessage('system', `Error: ${data.content}`);
+            } else if (data.type === 'thought') {
+                // Update thinking message or add new one
+                let thinkingDiv = document.getElementById('thinking');
+                if (!thinkingDiv) {
+                    thinkingDiv = document.createElement('div');
+                    thinkingDiv.className = 'message assistant';
+                    thinkingDiv.id = 'thinking';
+                    chatContainer.appendChild(thinkingDiv);
+                }
+                thinkingDiv.innerHTML = `<div class="message-content" style="background: rgba(0, 255, 136, 0.1); border-color: rgba(0, 255, 136, 0.3);">
+                    <div style="font-weight: bold; color: #00ff88; margin-bottom: 5px;">💭 Thinking:</div>
+                    ${data.content}
+                </div>`;
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            } else if (data.type === 'tool') {
+                // Show tool execution
+                const toolDiv = document.createElement('div');
+                toolDiv.className = 'message system';
+                toolDiv.innerHTML = `<div class="message-content" style="font-family: monospace; font-size: 12px;">
+                    🛠️ ${data.content}
+                </div>`;
+                chatContainer.appendChild(toolDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            } else if (data.type === 'tool_output') {
+                // Show tool output (maybe collapsed or small)
+                const outputDiv = document.createElement('div');
+                outputDiv.className = 'message system';
+                outputDiv.innerHTML = `<div class="message-content" style="font-family: monospace; font-size: 11px; opacity: 0.8;">
+                    <details>
+                        <summary>View Output</summary>
+                        <pre style="margin-top: 5px; white-space: pre-wrap;">${data.content}</pre>
+                    </details>
+                </div>`;
+                chatContainer.appendChild(outputDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            } else if (data.type === 'status') {
+                // Generic status update
+                // console.log("Status:", data.content);
+            }
+        }
+
+        // Check API health
+        async function checkHealth() {
+            try {
+                // Try /api/health first (new endpoint), fall back to /health (old)
+                let response = await fetch(`${API_URL}/api/health`);
+                if (!response.ok) response = await fetch(`${API_URL}/health`);
+
+                const data = await response.json();
+                // statusElement.textContent = `● Online - ${data.agent_name}`; // WebSocket handles online status
+            } catch (error) {
+                // statusElement.textContent = '● Offline - Cannot connect to API';
+            }
+        }
+
+        // Add message to chat
+        function addMessage(role, content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            // Format code blocks
+            const formattedContent = content.replace(/```(.*?)```/gs, (match, code) => {
+                return `<div class="code-block">${code.trim()}</div>`;
+            });
+
+            contentDiv.innerHTML = formattedContent;
+
+            const timestamp = document.createElement('div');
+            timestamp.className = 'timestamp';
+            timestamp.textContent = new Date().toLocaleTimeString();
+            contentDiv.appendChild(timestamp);
+
+            messageDiv.appendChild(contentDiv);
+            chatContainer.appendChild(messageDiv);
+
+            // Scroll to bottom
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Send message to agent
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || isProcessing) return;
+
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                addMessage('system', 'Error: WebSocket not connected. Reconnecting...');
+                connectWebSocket();
+                return;
+            }
+
+            // Add user message
+            addMessage('user', message);
+            messageInput.value = '';
+
+            // Disable input
+            isProcessing = true;
+            sendButton.style.display = 'none';
+            stopButton.style.display = 'block';
+
+            // Add "thinking" message placeholder
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.className = 'message assistant';
+            thinkingDiv.id = 'thinking';
+            thinkingDiv.innerHTML = '<div class="message-content"><span class="loading"></span> Agent is thinking...</div>';
+            chatContainer.appendChild(thinkingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            // Send via WebSocket
+            socket.send(JSON.stringify({
+                message: message,
+                type: 'message'
+            }));
+        }
+
+        // Stop agent execution
+        async function stopAgent() {
+            if (!isProcessing) return;
+
+            // Send stop via WebSocket if possible, else API
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    type: 'stop'
+                }));
+                addMessage('system', '🛑 Sending stop command...');
+            } else {
+                // Fallback to API
+                try {
+                    await fetch(`${API_URL}/api/session/${session_id}/stop`, { method: 'POST' });
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        }
+
+        // Event listeners
+        sendButton.addEventListener('click', sendMessage);
+        stopButton.addEventListener('click', stopAgent);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Initialize
+        connectWebSocket();
+        checkHealth();
+        setInterval(checkHealth, 30000); // Check health every 30 seconds
+    </script>
+</body>
+
+</html>
