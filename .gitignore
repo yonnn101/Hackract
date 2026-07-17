@@ -53,3 +53,6 @@ yarn-error.log*
 # Project specific
 memory/
 work_dir/
+Todo.txt
+project_analysis.md
+project_idea_suggestions.md
