@@ -4,7 +4,8 @@
 
 # 1. Public Website & Entry Pages
 
-## ☐ Landing Page
+## ☑ Landing Page 
+
 **Description:**  
 Main marketing page introducing Hackract, its AI-driven penetration testing workflow, collaboration system, and talent marketplace.
 
@@ -18,19 +19,19 @@ Main marketing page introducing Hackract, its AI-driven penetration testing work
 
 ---
 
-## ☐ About Page
+## ☑ About Page
 **Description:**  
 Explains the mission, vision, and purpose of Hackract.
 
 ---
 
-## ☐ Features Page
+## ☑ Features Page
 **Description:**  
 Detailed explanation of AI Assistant, AI Agent, workflow canvas, collaboration, reporting, and marketplace features.
 
 ---
 
-## ☐ Contact Page
+## ☑ Contact Page
 **Description:**  
 Allows users or organizations to contact the platform administrators.
 
@@ -38,39 +39,39 @@ Allows users or organizations to contact the platform administrators.
 
 # 2. Authentication & Access Control
 
-## ☐ User Registration
+## ☑ User Registration
 **Description:**  
 Allows new users to create accounts.
 
 ### Subtasks
-- ☐ Hacker Registration
-- ☐ Organization Registration
-- ☐ Form Validation
-- ☐ Password Encryption
-- ☐ Email Verification
+- ☑ Hacker Registration
+- ☑ Organization Registration
+- ☑ Form Validation
+- ☑ Password Encryption
+- ☑ Email Verification
 
 ---
 
-## ☐ OTP Verification
+## ☑ OTP Verification
 **Description:**  
 Verifies user identity during registration or password recovery.
 
 ### Subtasks
-- ☐ OTP Input Interface
-- ☐ OTP Expiration Handling
-- ☐ Resend OTP
-- ☐ Verification Validation
+- ☑ OTP Input Interface
+- ☑ OTP Expiration Handling
+- ☑ Resend OTP
+- ☑ Verification Validation
 
 ---
 
-## ☐ Login System
+## ☑ Login System
 **Description:**  
 Authenticates users and grants secure access.
 
 ### Subtasks
-- ☐ Email/Password Login
-- ☐ JWT Authentication
-- ☐ Session Management
+- ☑ Email/Password Login
+- ☑ JWT Authentication
+- ☑ Session Management
 
 ---
 
