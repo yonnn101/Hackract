@@ -60,9 +60,22 @@ const checkJwt = auth({
 });
 
 const tryLocalToken = async (req) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.split(' ')[1];
+  let token = null;
+
+  // 1. Try to get token from cookies
+  if (req.cookies?.accessToken) {
+    token = req.cookies.accessToken;
+  }
+
+  // 2. Fallback to Authorization header
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+  }
+
+  if (!token) return null;
   if (!process.env.JWT_ACCESS_SECRET) return null;
 
   let decoded;

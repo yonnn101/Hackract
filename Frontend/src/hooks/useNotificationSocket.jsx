@@ -16,6 +16,7 @@ const useNotificationSocket = (accessToken, user) => {
         const newSocket = io(SOCKET_URL, {
             auth: { token: accessToken },
             transports: ['websocket', 'polling'],
+            withCredentials: true,
             reconnectionAttempts: 5,
             reconnectionDelay: 1000,
         });

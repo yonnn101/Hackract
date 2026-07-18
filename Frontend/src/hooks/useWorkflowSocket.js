@@ -53,6 +53,7 @@ export const useWorkflowSocket = (workflowId) => {
 
     const newSocket = io(SOCKET_URL, {
       transports: ['websocket'],   // skip polling for lower latency
+      withCredentials: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 10,
     });

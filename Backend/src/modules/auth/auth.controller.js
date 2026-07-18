@@ -6,15 +6,56 @@ import { AuthErrorCodes } from './auth.constants.js';
 
 const metaFromReq = (req) => ({ userAgent: req.get('user-agent'), ipAddress: req.ip });
 
+const isProduction = process.env.NODE_ENV === 'production';
+
+const setAuthCookies = (res, tokens) => {
+    if (!tokens) return;
+    res.cookie('accessToken', tokens.accessToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 1000, // 1 hour
+        path: '/'
+    });
+    res.cookie('refreshToken', tokens.refreshToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        path: '/'
+    });
+};
+
+const clearAuthCookies = (res) => {
+    res.clearCookie('accessToken', {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        path: '/'
+    });
+    res.clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        path: '/'
+    });
+};
+
 export const registerLocal = asyncHandler(async (req, res) => {
     const payload = req.validatedBody || req.body;
     const result = await authService.registerLocal(payload, metaFromReq(req));
+    if (result.tokens) {
+        setAuthCookies(res, result.tokens);
+    }
     ApiResponse.created(res, result, 'Registration successful');
 });
 
 export const loginLocal = asyncHandler(async (req, res) => {
     const payload = req.validatedBody || req.body;
     const result = await authService.loginLocal(payload, metaFromReq(req));
+    if (result.tokens) {
+        setAuthCookies(res, result.tokens);
+    }
     ApiResponse.success(res, result, 'Login successful');
 });
 
@@ -25,8 +66,14 @@ export const assignInitialRole = asyncHandler(async (req, res) => {
 });
 
 export const refreshToken = asyncHandler(async (req, res) => {
-    const payload = req.validatedBody || req.body;
-    const result = await authService.refresh(payload.refreshToken, metaFromReq(req));
+    const token = req.cookies?.refreshToken || req.validatedBody?.refreshToken || req.body?.refreshToken;
+    if (!token) {
+        throw new AppError('Refresh token is required', 400, AuthErrorCodes.REFRESH_TOKEN_INVALID);
+    }
+    const result = await authService.refresh(token, metaFromReq(req));
+    if (result.tokens) {
+        setAuthCookies(res, result.tokens);
+    }
     ApiResponse.success(res, result, 'Token refreshed successfully');
 });
 
@@ -48,8 +95,9 @@ export const getMe = asyncHandler(async (req, res) => {
  * Logout from local device
  */
 export const logout = asyncHandler(async (req, res) => {
-    const { refreshToken } = req.body || {};
-    await authService.logout(refreshToken, req.user?.id);
+    const token = req.cookies?.refreshToken || req.body?.refreshToken;
+    await authService.logout(token, req.user?.id);
+    clearAuthCookies(res);
     ApiResponse.success(res, null, 'Logged out from local session');
 });
 
@@ -58,6 +106,7 @@ export const logout = asyncHandler(async (req, res) => {
  */
 export const logoutAll = asyncHandler(async (req, res) => {
     const result = await authService.logoutAll(req.user.id);
+    clearAuthCookies(res);
     ApiResponse.success(res, null, result.message);
 });
 

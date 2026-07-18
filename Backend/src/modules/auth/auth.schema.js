@@ -190,9 +190,9 @@ export const resetPasswordSchema = Joi.object({
  */
 export const refreshTokenSchema = Joi.object({
     refreshToken: Joi.string()
-        .required()
+        .optional()
         .messages({
-            'any.required': 'Refresh token is required',
+            'string.base': 'Refresh token must be a string',
         }),
 });
 

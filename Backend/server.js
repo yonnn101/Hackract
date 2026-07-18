@@ -15,11 +15,30 @@ import { initializeStorage } from "./src/utils/s3Upload.js";
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "127.0.0.1";
 
+const parseCookies = (cookieString) => {
+  if (!cookieString) return {};
+  return cookieString
+    .split(';')
+    .reduce((res, c) => {
+      const parts = c.trim().split('=');
+      const key = parts[0];
+      const val = parts.slice(1).join('=');
+      if (key && val) {
+        res[key] = decodeURIComponent(val);
+      }
+      return res;
+    }, {});
+};
+
 // Decode socket token and return user id, or null
 const decodeSocketUser = async (socket) => {
   try {
+    const cookies = parseCookies(socket.request?.headers?.cookie);
+    const cookieToken = cookies?.accessToken;
+
     const token =
       socket.handshake.auth?.token ||
+      cookieToken ||
       socket.handshake.headers?.authorization?.replace("Bearer ", "");
     
     if (!token) {

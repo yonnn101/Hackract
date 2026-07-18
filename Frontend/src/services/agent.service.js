@@ -28,14 +28,13 @@ export const deployAgent = (id, pentestId) =>
   api.post(`/ai-agents/${id}/deploy`, { pentestId }).then((r) => r.data);
 
 export const streamChatWithAgent = async (id, message, onEvent, signal) => {
-  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
   const res = await fetch(`${API_BASE_URL}/ai-agents/${id}/chat/stream`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
+    credentials: 'include',
     body: JSON.stringify({ message }),
     signal,
   });

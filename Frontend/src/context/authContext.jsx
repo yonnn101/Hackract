@@ -7,55 +7,35 @@ import { hasRole as checkRole, hasAnyRole as checkAnyRole, getPrimaryRole, getDa
 
 const AuthContext = createContext(null);
 
-const STORAGE_KEYS = {
-  ACCESS: "hackract_access_token",
-  REFRESH: "hackract_refresh_token",
-};
+const LOGGED_IN_KEY = "hackract_logged_in";
 
 export const AuthProvider = ({ children }) => {
   const { isAuthenticated, logout: auth0Logout } = useAuth0();
-  const [accessToken, setAccessToken] = useState(() => localStorage.getItem(STORAGE_KEYS.ACCESS));
-  const [refreshToken, setRefreshToken] = useState(() => localStorage.getItem(STORAGE_KEYS.REFRESH));
+  const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem(LOGGED_IN_KEY) === 'true');
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [isBootstrapping, setIsBootstrapping] = useState(() => Boolean(localStorage.getItem(STORAGE_KEYS.ACCESS)));
+  const [isBootstrapping, setIsBootstrapping] = useState(isLoggedIn);
 
-  const persistTokens = useCallback((nextAccess, nextRefresh) => {
-    if (nextAccess) {
-      localStorage.setItem(STORAGE_KEYS.ACCESS, nextAccess);
-      setAccessToken(nextAccess);
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.ACCESS);
-      setAccessToken(null);
-    }
-
-    if (nextRefresh) {
-      localStorage.setItem(STORAGE_KEYS.REFRESH, nextRefresh);
-      setRefreshToken(nextRefresh);
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.REFRESH);
-      setRefreshToken(null);
-    }
-  }, []);
+  const accessToken = isLoggedIn ? 'cookie-session' : null;
+  const refreshToken = isLoggedIn ? 'cookie-session' : null;
 
   const fetchProfile = useCallback(async () => {
-    if (!accessToken) {
+    if (!isLoggedIn) {
       setIsBootstrapping(false);
       return;
     }
     try {
-      const { data } = await api.get("/auth/local/me", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const { data } = await api.get("/auth/local/me");
       setUser(data?.data?.user || null);
     } catch (error) {
       console.error("Failed to load profile", error);
-      persistTokens(null, null);
+      localStorage.removeItem(LOGGED_IN_KEY);
+      setIsLoggedIn(false);
       setUser(null);
     } finally {
       setIsBootstrapping(false);
     }
-  }, [accessToken, persistTokens, refreshToken]);
+  }, [isLoggedIn]);
 
   useEffect(() => {
     fetchProfile();
@@ -77,8 +57,9 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       try {
         const { data } = await api.post("/auth/local/login", credentials);
-        const { user: loggedInUser, tokens } = data.data;
-        persistTokens(tokens.accessToken, tokens.refreshToken);
+        const { user: loggedInUser } = data.data;
+        localStorage.setItem(LOGGED_IN_KEY, 'true');
+        setIsLoggedIn(true);
         setUser(loggedInUser);
         toast.success("Logged in successfully");
         return data.data;
@@ -89,7 +70,7 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
       }
     },
-    [persistTokens]
+    []
   );
 
   const register = useCallback(
@@ -102,11 +83,13 @@ export const AuthProvider = ({ children }) => {
         const { user: newUser, tokens, message: nestedMessage } = payloadData || {};
         const successMessage = nestedMessage || topMessage || "Registration successful. Please verify your email.";
 
-        if (tokens?.accessToken && tokens?.refreshToken) {
-          persistTokens(tokens.accessToken, tokens.refreshToken);
+        if (tokens) {
+          localStorage.setItem(LOGGED_IN_KEY, 'true');
+          setIsLoggedIn(true);
           setUser(newUser);
         } else {
-          persistTokens(null, null);
+          localStorage.removeItem(LOGGED_IN_KEY);
+          setIsLoggedIn(false);
           setUser(null);
         }
 
@@ -120,23 +103,21 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
       }
     },
-    [persistTokens]
+    []
   );
 
   const refreshTokens = useCallback(async () => {
-    if (!refreshToken) throw new Error("No refresh token available");
-    const { data } = await api.post("/auth/local/refresh", { refreshToken });
-    const { tokens, user: refreshedUser } = data.data;
-    persistTokens(tokens.accessToken, tokens.refreshToken);
+    const { data } = await api.post("/auth/local/refresh", {});
+    const { user: refreshedUser } = data.data;
     if (refreshedUser) setUser(refreshedUser);
-    return tokens.accessToken;
-  }, [persistTokens, refreshToken]);
+    return 'cookie-session';
+  }, []);
 
   const logout = useCallback(async (options = {}) => {
     const { skipAuth0Redirect = false } = options;
     try {
-      if (refreshToken) {
-        const { data } = await api.post("/auth/logout", { refreshToken });
+      if (isLoggedIn) {
+        const { data } = await api.post("/auth/logout");
         const message = data?.message || "Logged out from local session";
         toast.success(message);
       } else {
@@ -146,7 +127,8 @@ export const AuthProvider = ({ children }) => {
       console.warn("Logout warning:", error?.message);
       toast.error("Logout failed. Clearing local session.");
     } finally {
-      persistTokens(null, null);
+      localStorage.removeItem(LOGGED_IN_KEY);
+      setIsLoggedIn(false);
       setUser(null);
       if (isAuthenticated && !skipAuth0Redirect) {
         auth0Logout({
@@ -156,7 +138,7 @@ export const AuthProvider = ({ children }) => {
         });
       }
     }
-  }, [persistTokens, refreshToken, isAuthenticated, auth0Logout]);
+  }, [isLoggedIn, isAuthenticated, auth0Logout]);
 
   const value = useMemo(
     () => ({
@@ -178,7 +160,6 @@ export const AuthProvider = ({ children }) => {
       roleTypes: getRoleTypes(user),
     }),
     [user, accessToken, refreshToken, loading, isBootstrapping, login, register, logout, refreshTokens, fetchProfile]
-
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

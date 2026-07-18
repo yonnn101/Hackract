@@ -3,46 +3,30 @@ import axios from 'axios';
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1',
     headers: { 'Content-Type': 'application/json' },
+    withCredentials: true,
 });
 
-const STORAGE_KEYS = {
-    ACCESS:  'hackract_access_token',
-    REFRESH: 'hackract_refresh_token',
-};
+const LOGGED_IN_KEY = 'hackract_logged_in';
 
 // ── Circuit breaker ───────────────────────────────────────────────────────────
 // Prevents multiple simultaneous refresh attempts and stops infinite loops.
 let isRefreshing       = false;
-let refreshSubscribers = [];       // queued requests waiting for the new token
+let refreshSubscribers = [];       // queued requests waiting for the refresh
 let refreshFailed      = false;    // once true, never retry until next login
 
 const subscribeTokenRefresh = (cb) => refreshSubscribers.push(cb);
-const notifySubscribers     = (token) => { refreshSubscribers.forEach(cb => cb(token)); refreshSubscribers = []; };
-const rejectSubscribers     = () => { refreshSubscribers.forEach(cb => cb(null)); refreshSubscribers = []; };
+const notifySubscribers     = () => { refreshSubscribers.forEach(cb => cb(true)); refreshSubscribers = []; };
+const rejectSubscribers     = () => { refreshSubscribers.forEach(cb => cb(false)); refreshSubscribers = []; };
 
 // ── Force logout helper (no React dependency) ─────────────────────────────────
 const nukeSession = () => {
-    localStorage.removeItem(STORAGE_KEYS.ACCESS);
-    localStorage.removeItem(STORAGE_KEYS.REFRESH);
+    localStorage.removeItem(LOGGED_IN_KEY);
     refreshFailed = true;
     // Redirect to login without a full React re-render cycle
     if (!window.location.pathname.startsWith('/login')) {
         window.location.href = '/login';
     }
 };
-
-// ── REQUEST interceptor — attach access token ─────────────────────────────────
-api.interceptors.request.use(
-    (config) => {
-        // Skip adding the header for the refresh endpoint itself
-        if (!config._isRefreshRequest) {
-            const token = localStorage.getItem(STORAGE_KEYS.ACCESS);
-            if (token) config.headers['Authorization'] = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => Promise.reject(error),
-);
 
 // ── RESPONSE interceptor — handle 401 with single refresh attempt ─────────────
 api.interceptors.response.use(
@@ -67,8 +51,8 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
-        const storedRefreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH);
-        if (!storedRefreshToken) {
+        const isLoggedIn = localStorage.getItem(LOGGED_IN_KEY) === 'true';
+        if (!isLoggedIn) {
             nukeSession();
             return Promise.reject(error);
         }
@@ -78,9 +62,8 @@ api.interceptors.response.use(
         // If a refresh is already in flight, queue this request
         if (isRefreshing) {
             return new Promise((resolve, reject) => {
-                subscribeTokenRefresh((newToken) => {
-                    if (!newToken) { reject(error); return; }
-                    originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+                subscribeTokenRefresh((success) => {
+                    if (!success) { reject(error); return; }
                     resolve(api(originalRequest));
                 });
             });
@@ -89,18 +72,13 @@ api.interceptors.response.use(
         // Start a refresh
         isRefreshing = true;
         try {
-            const { data } = await api.post(
+            await api.post(
                 '/auth/local/refresh',
-                { refreshToken: storedRefreshToken },
-                { _isRefreshRequest: true },   // flag to skip the request interceptor
+                {}, // refresh token is sent automatically via cookie
+                { _isRefreshRequest: true },   // flag to skip any manual interceptors if any
             );
 
-            const { accessToken, refreshToken: newRefreshToken } = data.data.tokens;
-            localStorage.setItem(STORAGE_KEYS.ACCESS,  accessToken);
-            localStorage.setItem(STORAGE_KEYS.REFRESH, newRefreshToken);
-
-            notifySubscribers(accessToken);
-            originalRequest.headers['Authorization'] = `Bearer ${accessToken}`;
+            notifySubscribers();
             return api(originalRequest);
         } catch (refreshError) {
             nukeSession();

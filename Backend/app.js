@@ -6,6 +6,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "./src/config/Swagger.js";
 // Import main router
@@ -14,7 +15,11 @@ import apiRoutes from './src/routes.js';
 const app = express();
 
 // Middlewares
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_BASE_URL || 'http://localhost:5173',
+  credentials: true
+}));
+app.use(cookieParser());
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(compression());
 app.use(express.json({ limit: '50mb' }));

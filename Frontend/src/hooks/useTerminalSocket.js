@@ -14,6 +14,7 @@ export const useTerminalSocket = (workflowId) => {
     const newSocket = io(`${SOCKET_URL}/terminal`, {
       transports: ['websocket'],
       query: { workflowId },
+      withCredentials: true,
     });
 
     newSocket.on('connect', () => {

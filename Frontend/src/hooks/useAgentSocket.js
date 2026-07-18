@@ -16,12 +16,11 @@ export const useAgentSocket = (sessionId, onEvent) => {
   useEffect(() => {
     if (!sessionId) return undefined;
 
-    const token = localStorage.getItem(STORAGE_KEYS.ACCESS);
-    console.debug('[useAgentSocket] connecting', { socketUrl: SOCKET_URL, sessionId, hasToken: !!token });
+    console.debug('[useAgentSocket] connecting', { socketUrl: SOCKET_URL, sessionId });
     const socket = io(`${SOCKET_URL}/ai-agent`, {
       transports: ['websocket'],
       query: { sessionId },
-      auth: { token },
+      withCredentials: true,
     });
 
     socketRef.current = socket;
