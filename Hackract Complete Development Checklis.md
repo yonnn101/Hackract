@@ -75,61 +75,61 @@ Authenticates users and grants secure access.
 
 ---
 
-## ☐ Forgot Password
+## ☑ Forgot Password
 **Description:**  
 Allows users to recover forgotten passwords securely.
 
 ### Subtasks
-- ☐ Email Request
-- ☐ OTP/Reset Link
-- ☐ New Password Creation
+- ☑ Email Request
+- ☑ OTP/Reset Link
+- ☑ New Password Creation
 
 ---
 
-## ☐ Role-Based Access Control (RBAC)
+## ☑ Role-Based Access Control (RBAC)
 **Description:**  
 Controls permissions and access levels for organizations, admins, and hackers.
 
 ### Roles
-- ☐ Organization Owner
-- ☐ Project Admin
-- ☐ Pentester/Hacker
-- ☐ Read-only Member (optional)
+- ☑ Organization Owner
+- ☑ Project Admin
+- ☑ Pentester/Hacker
+- ☑ Read-only Member (optional)
 
 ---
 
 # 3. Onboarding & Profile Setup
 
-## ☐ Profile Completion Page
+## ☑ Profile Completion Page
 **Description:**  
 Collects additional user information after registration.
 
 ### Hacker Fields
-- ☐ Skills
-- ☐ Experience
-- ☐ Certifications
-- ☐ Bio
-- ☐ Portfolio Links
+- ☑ Skills
+- ☑ Experience
+- ☑ Certifications
+- ☑ Bio
+- ☑ Portfolio Links
 
 ### Organization Fields
-- ☐ Company Name
-- ☐ Domain
-- ☐ Industry
-- ☐ Team Size
-- ☐ TIN Number
-- ☐ Location
-- ☐ Business license (ንግድ ፍቃድ)
+- ☑ Company Name
+- ☑ Domain
+- ☑ Industry
+- ☑ Team Size
+- ☑ TIN Number
+- ☑ Location
+- ☑ Business license (ንግድ ፍቃድ)
 
 ---
 
-## ☐ KYC Verification
+## ☑ KYC Verification
 **Description:**  
 Verifies the identity of ethical hackers and organizations.
 
 ### Subtasks
-- ☐ FAN number
-- ☐ Verification Status
-- ☐ Verification Badge
+- ☑ FAN number
+- ☑ Verification Status
+- ☑ Verification Badge
 
 ---
 
