@@ -63,6 +63,7 @@ import SystemAdminDashboard from "../pages/Admin/SystemAdminDashboard.jsx";
 
 // Optional (only if you really have this file)
 import DashboardPreview from "../pages/DashboardPreview.jsx";
+import ShareableView from "../pages/ShareableView.jsx";
 
 // 404 Route
 import NotFound from "../pages/NotFound.jsx";
@@ -80,6 +81,10 @@ const router = createBrowserRouter([
       {
         index: true,
         element: <Landing />,
+      },
+      {
+        path: "share/:token",
+        element: <ShareableView />,
       },
 
       // ══════════════════════════════════════════════════════════════

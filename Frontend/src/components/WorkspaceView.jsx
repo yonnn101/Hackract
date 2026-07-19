@@ -200,24 +200,36 @@ const WorkspaceView = ({ projectId, onBack }) => {
 
   const isProjectAdmin = useMemo(() => {
     return project?.collaborators?.some(
-      (c) => c.userId === user?.id && c.role === "PROJECT_ADMIN"
+      (c) => c.userId === user?.id && (c.role === "PROJECT_ADMIN" || c.role === "admin" || c.role === "lead")
+    );
+  }, [user, project]);
+
+  const isViewer = useMemo(() => {
+    return project?.collaborators?.some(
+      (c) => c.userId === user?.id && c.role === "VIEWER"
     );
   }, [user, project]);
 
   const canManage = useMemo(() => {
+    if (isViewer) return false;
     return (
       user?.roles?.some((r) => r.type === "ORG_ADMIN") ||
-      project?.collaborators?.some((c) => c.userId === user?.id && (c.role === "PROJECT_ADMIN" || c.role === "PROJECT_LEAD"))
+      project?.collaborators?.some((c) => c.userId === user?.id && (c.role === "PROJECT_ADMIN" || c.role === "PROJECT_LEAD" || c.role === "admin" || c.role === "lead")) ||
+      project?.leadPentesterId === user?.id ||
+      project?.collaborators?.some((c) => c.userId === user?.id && c.role !== "VIEWER")
     );
-  }, [user, project]);
+  }, [user, project, isViewer]);
 
   const tabs = useMemo(() => {
     if (!project) return [];
-    if (project.isPersonal) {
-      return ["workflow", "findings"];
+    const base = project.isPersonal
+      ? ["workflow", "findings"]
+      : ["overview", "workflow", "findings", "team"];
+    if (canManage) {
+      base.push("settings");
     }
-    return ["overview", "workflow", "findings", "team"];
-  }, [project, isProjectAdmin, canManage]);
+    return base;
+  }, [project, canManage]);
 
   const [activeTab, setActiveTab] = useState(() => {
     const queryTab = searchParams.get("tab");
@@ -225,14 +237,36 @@ const WorkspaceView = ({ projectId, onBack }) => {
     return project?.isPersonal ? "workflow" : "overview";
   });
 
+  const [targetDomains, setTargetDomains] = useState("");
+  const [ipRanges, setIpRanges] = useState("");
+  const [excludedAssets, setExcludedAssets] = useState("");
+  const [projectName, setProjectName] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
+  const [shareLink, setShareLink] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [viewerEmail, setViewerEmail] = useState("");
+  const [isAddingViewer, setIsAddingViewer] = useState(false);
+  const [shareLinks, setShareLinks] = useState([]);
+  const [isRevoking, setIsRevoking] = useState(false);
+
   useEffect(() => {
     if (project) {
-      const currentTabs = project.isPersonal ? ["workflow", "findings"] : ["overview", "workflow", "findings", "team"];
-      if (!currentTabs.includes(activeTab)) {
+      setTargetDomains(project.targetDomains?.join("\n") || "");
+      setIpRanges(project.ipRanges?.join("\n") || "");
+      setExcludedAssets(project.excludedAssets || "");
+      setProjectName(project.name || "");
+      setProjectDescription(project.description || "");
+    }
+  }, [project]);
+
+  useEffect(() => {
+    if (project) {
+      if (!tabs.includes(activeTab)) {
         setActiveTab(project.isPersonal ? "workflow" : "overview");
       }
     }
-  }, [project]);
+  }, [project, tabs, activeTab]);
 
   const loadProject = async () => {
     setLoading(true);
@@ -246,8 +280,122 @@ const WorkspaceView = ({ projectId, onBack }) => {
     }
   };
 
+  const loadShareLinks = async () => {
+    try {
+      const { data } = await api.get(`/projects/${projectId}/share`);
+      if (data?.success) setShareLinks(data.data);
+    } catch (error) {
+      console.error("Unable to load share links", error);
+    }
+  };
+
+  const handleSaveSettings = async (e) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const parsedDomains = targetDomains.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+      const parsedIpRanges = ipRanges.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+      
+      const res = await api.patch(`/projects/${projectId}`, {
+        name: projectName,
+        description: projectDescription,
+        targetDomains: parsedDomains,
+        ipRanges: parsedIpRanges,
+        excludedAssets: excludedAssets
+      });
+
+      if (res.data?.success) {
+        toast.success("Project settings updated successfully!");
+        loadProject();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update project settings: " + (err.response?.data?.error || err.message));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleGenerateShareLink = async () => {
+    setIsSharing(true);
+    try {
+      const res = await api.post(`/projects/${projectId}/share`);
+      if (res.data?.success) {
+        toast.success("Shareable link generated!");
+        loadShareLinks();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate shareable link: " + (err.response?.data?.error || err.message));
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleRevokeLink = async (linkId) => {
+    setIsRevoking(true);
+    try {
+      const res = await api.delete(`/projects/${projectId}/share/${linkId}`);
+      if (res.data?.success) {
+        toast.success("Link revoked successfully.");
+        loadShareLinks();
+      }
+    } catch (err) {
+      toast.error("Failed to revoke link: " + (err.response?.data?.error || err.message));
+    } finally {
+      setIsRevoking(false);
+    }
+  };
+
+  const handleRevokeAllLinks = async () => {
+    setIsRevoking(true);
+    try {
+      const res = await api.delete(`/projects/${projectId}/share`);
+      if (res.data?.success) {
+        toast.success("All links revoked successfully.");
+        loadShareLinks();
+      }
+    } catch (err) {
+      toast.error("Failed to revoke all links: " + (err.response?.data?.error || err.message));
+    } finally {
+      setIsRevoking(false);
+    }
+  };
+
+  const handleAddViewer = async (e) => {
+    e.preventDefault();
+    if (!viewerEmail.trim()) return;
+    setIsAddingViewer(true);
+    try {
+      const { data } = await api.get(`/chat/users/search?q=${encodeURIComponent(viewerEmail)}`);
+      const targetUser = data.data?.users?.[0];
+      
+      if (!targetUser) {
+        toast.error("User not found in system. Please check the email or handle.");
+        return;
+      }
+      
+      const res = await api.post(`/projects/${projectId}/viewers`, {
+        userId: targetUser.id
+      });
+      if (res.data?.success) {
+        toast.success("Viewer added successfully!");
+        setViewerEmail("");
+        loadProject();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add viewer: " + (err.response?.data?.error || err.message));
+    } finally {
+      setIsAddingViewer(false);
+    }
+  };
+
   useEffect(() => {
-    if (projectId) loadProject();
+    if (projectId) {
+      loadProject();
+      loadShareLinks();
+    }
   }, [projectId]);
 
   useEffect(() => {
@@ -324,17 +472,22 @@ const WorkspaceView = ({ projectId, onBack }) => {
     }
   };
 
-  const handleRemoveMember = async (userId) => {
-    if (!window.confirm("Are you sure you want to ban this hacker from the project?")) return;
+  const handleRemoveMember = async (userId, role) => {
+    const isViewer = role === "VIEWER";
+    const confirmMsg = isViewer
+      ? "Are you sure you want to revoke access for this viewer?"
+      : "Are you sure you want to ban this hacker from the project?";
+      
+    if (!window.confirm(confirmMsg)) return;
     try {
       await api.delete(`/projects/${projectId}/collaborators/${userId}`);
-      toast.success("Hacker banned from project");
+      toast.success(isViewer ? "Viewer access revoked" : "Hacker banned from project");
       setProject(prev => ({
         ...prev,
         collaborators: prev.collaborators.filter(c => c.userId !== userId)
       }));
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to ban hacker");
+      toast.error(err.response?.data?.message || (isViewer ? "Failed to revoke access" : "Failed to ban hacker"));
     }
   };
 
@@ -639,7 +792,7 @@ const WorkspaceView = ({ projectId, onBack }) => {
                   >
                     Open Workflow Board <FiExternalLink className="inline ml-2" />
                   </button>
-                ) : (
+                ) : !isViewer ? (
                   <button
                     onClick={async () => {
                       try {
@@ -659,6 +812,8 @@ const WorkspaceView = ({ projectId, onBack }) => {
                   >
                     Initialize Board <FiExternalLink className="inline ml-2" />
                   </button>
+                ) : (
+                  <p className="text-xs text-white/40 font-mono">Workflow board has not been initialized yet.</p>
                 )}
               </div>
             </div>
@@ -762,9 +917,11 @@ const WorkspaceView = ({ projectId, onBack }) => {
                             <div className="font-bold text-sm tracking-tight text-white">{member.user?.fullName || "Anonymous"}</div>
                             <div className="flex items-center gap-2 mt-1">
                               <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest ${
-                                member.role === 'PROJECT_ADMIN' ? 'bg-purple-500/20 text-purple-400' : 'bg-[#00ff88]/20 text-[#00ff88]'
+                                member.role === 'PROJECT_ADMIN' ? 'bg-purple-500/20 text-purple-400' :
+                                member.role === 'VIEWER' ? 'bg-sky-500/20 text-sky-400' :
+                                'bg-[#00ff88]/20 text-[#00ff88]'
                               }`}>
-                                {member.role === 'PROJECT_ADMIN' ? 'Admin' : 'Operative'}
+                                {member.role === 'PROJECT_ADMIN' ? 'Admin' : member.role === 'VIEWER' ? 'Viewer' : 'Operative'}
                               </span>
                               <span className="text-[10px] text-white/20 font-mono tracking-tighter">
                                 {member.user?.handle ? `@${member.user.handle}` : member.user?.email}
@@ -775,7 +932,7 @@ const WorkspaceView = ({ projectId, onBack }) => {
 
                         {canManage && member.userId !== user?.id && (
                           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {member.role !== 'PROJECT_ADMIN' && (
+                            {member.role !== 'PROJECT_ADMIN' && member.role !== 'VIEWER' && (
                               <button
                                 onClick={() => handleMakeAdmin(member.userId)}
                                 title="Promote to Admin"
@@ -785,8 +942,8 @@ const WorkspaceView = ({ projectId, onBack }) => {
                               </button>
                             )}
                             <button
-                              onClick={() => handleRemoveMember(member.userId)}
-                              title="Ban Hacker"
+                              onClick={() => handleRemoveMember(member.userId, member.role)}
+                              title={member.role === 'VIEWER' ? "Revoke Access" : "Ban Hacker"}
                               className="p-2.5 rounded-xl bg-rose-500/5 hover:bg-rose-500/10 text-rose-500/40 hover:text-rose-500 transition-all border border-white/5"
                             >
                               <FiTrash2 size={14} />
@@ -832,6 +989,172 @@ const WorkspaceView = ({ projectId, onBack }) => {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === "settings" && canManage && (
+            <div className="space-y-8 max-w-6xl mx-auto">
+              <div className="bg-black/70 backdrop-blur-md border border-white/10 p-8 rounded-4xl space-y-6">
+                <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em] flex items-center gap-3">
+                  <FiEdit2 className="text-[#00ff88]" /> Project Settings & Scope
+                </h3>
+                
+                <form onSubmit={handleSaveSettings} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-white/40 uppercase tracking-wider font-mono">Project Name</label>
+                      <input
+                        type="text"
+                        value={projectName}
+                        onChange={(e) => setProjectName(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white outline-none focus:border-[#00ff88]/50 transition-all font-mono"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-white/40 uppercase tracking-wider font-mono">Excluded Assets / Restrictions</label>
+                      <input
+                        type="text"
+                        value={excludedAssets}
+                        onChange={(e) => setExcludedAssets(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white outline-none focus:border-[#00ff88]/50 transition-all font-mono"
+                        placeholder="e.g. *.prod.domain.com, staging-db"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-white/40 uppercase tracking-wider font-mono">Project Description</label>
+                    <textarea
+                      value={projectDescription}
+                      onChange={(e) => setProjectDescription(e.target.value)}
+                      rows={3}
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white outline-none focus:border-[#00ff88]/50 transition-all font-mono"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-white/40 uppercase tracking-wider font-mono">Target Domains (Scope) - One per line</label>
+                      <textarea
+                        value={targetDomains}
+                        onChange={(e) => setTargetDomains(e.target.value)}
+                        rows={4}
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white outline-none focus:border-[#00ff88]/50 transition-all font-mono"
+                        placeholder="domain1.com&#10;domain2.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-white/40 uppercase tracking-wider font-mono">IP Ranges / Networks - One per line</label>
+                      <textarea
+                        value={ipRanges}
+                        onChange={(e) => setIpRanges(e.target.value)}
+                        rows={4}
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white outline-none focus:border-[#00ff88]/50 transition-all font-mono"
+                        placeholder="192.168.1.0/24&#10;10.0.0.1"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="px-6 py-3 bg-[#00ff88] text-black font-black text-[10px] uppercase tracking-widest rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50"
+                  >
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                </form>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Share Link Generation */}
+                <div className="bg-black/70 backdrop-blur-md border border-white/10 p-8 rounded-4xl space-y-6">
+                  <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em] flex items-center gap-3">
+                    <FiExternalLink className="text-[#00ff88]" /> Generate Shareable Link
+                  </h3>
+                  <p className="text-xs text-white/60 leading-relaxed font-mono">
+                    Generate a secure read-only token link. Anyone with this link who is a registered user can view the project scope and findings.
+                  </p>
+
+                  {shareLinks.length > 0 && (
+                    <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                      {shareLinks.map(link => (
+                        <div key={link.id} className="bg-[#0f1115] border border-white/5 p-4 rounded-2xl flex items-center justify-between gap-4">
+                          <span className="text-[10px] text-white/80 font-mono truncate">
+                            {window.location.origin}/share/{link.token}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(`${window.location.origin}/share/${link.token}`);
+                                toast.success("Link copied to clipboard!");
+                              }}
+                              className="px-3 py-1.5 bg-white/10 text-white hover:bg-white text-[9px] hover:text-black rounded-lg font-mono uppercase tracking-widest transition-all whitespace-nowrap"
+                            >
+                              Copy
+                            </button>
+                            <button
+                              onClick={() => handleRevokeLink(link.id)}
+                              disabled={isRevoking}
+                              className="px-3 py-1.5 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white text-[9px] rounded-lg font-mono uppercase tracking-widest transition-all whitespace-nowrap disabled:opacity-50"
+                            >
+                              Revoke
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {shareLinks.length > 1 && (
+                        <div className="pt-2 flex justify-end">
+                           <button
+                              onClick={handleRevokeAllLinks}
+                              disabled={isRevoking}
+                              className="text-[10px] text-rose-500 hover:text-rose-400 font-mono uppercase tracking-widest transition-all disabled:opacity-50"
+                            >
+                              Revoke All Links
+                            </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <button
+                    onClick={handleGenerateShareLink}
+                    disabled={isSharing}
+                    className="px-6 py-3 bg-[#00ff88]/10 hover:bg-[#00ff88]/20 border border-[#00ff88]/20 text-[#00ff88] font-black text-[10px] uppercase tracking-widest rounded-xl transition-all"
+                  >
+                    {isSharing ? "Generating..." : "Generate Secure Link"}
+                  </button>
+                </div>
+
+                {/* Viewer addition */}
+                <div className="bg-black/70 backdrop-blur-md border border-white/10 p-8 rounded-4xl space-y-6">
+                  <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em] flex items-center gap-3">
+                    <FiUsers className="text-[#00ff88]" /> Invite Show-Only Viewer
+                  </h3>
+                  <p className="text-xs text-white/60 leading-relaxed font-mono">
+                    Grant read-only access to another registered operative by inputting their registered email address or handle.
+                  </p>
+
+                  <form onSubmit={handleAddViewer} className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. operator@hackract.com"
+                      value={viewerEmail}
+                      onChange={(e) => setViewerEmail(e.target.value)}
+                      className="flex-1 bg-[#0f1115] border border-white/5 rounded-2xl px-4 py-3 text-xs text-white outline-none focus:border-[#00ff88]/50 transition-all font-mono"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={isAddingViewer}
+                      className="px-6 bg-[#00ff88] text-black font-black text-[10px] uppercase tracking-widest rounded-2xl hover:scale-[1.02] transition-all disabled:opacity-50"
+                    >
+                      {isAddingViewer ? "..." : "Add"}
+                    </button>
+                  </form>
+                </div>
+              </div>
             </div>
           )}
         </div>

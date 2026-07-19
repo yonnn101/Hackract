@@ -4,10 +4,12 @@ import { FiChevronLeft, FiAlertCircle, FiClock, FiPaperclip, FiEdit2 } from "rea
 import api from "../api/axiosConfig";
 import toast from "react-hot-toast";
 import RecordFindingModal from "./WorkflowEditor/components/RecordFindingModal";
+import { useAuth } from "../context/authContext";
 
 const FindingDetails = () => {
   const { findingId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [finding, setFinding] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -26,6 +28,10 @@ const FindingDetails = () => {
   useEffect(() => {
     loadData();
   }, [findingId]);
+
+  const isViewer = finding?.pentest?.collaborators?.some(
+    (c) => c.userId === user?.id && c.role === "VIEWER"
+  );
 
   const handleEditSave = async (updatedData) => {
     try {
@@ -68,7 +74,7 @@ const FindingDetails = () => {
         <div className="space-y-2">
           <div className="flex items-center gap-4">
             <h1 className="text-3xl font-bold tracking-tight">{finding.title}</h1>
-            {finding.status === 'OPEN' && (
+            {finding.status === 'OPEN' && !isViewer && (
               <button
                 onClick={() => setIsEditModalOpen(true)}
                 className="p-2 text-gray-500 hover:text-[#00ff41] bg-white/5 hover:bg-white/10 rounded-lg transition-colors border border-transparent hover:border-[#00ff41]/30"

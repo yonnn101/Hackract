@@ -544,12 +544,14 @@ const WorkflowEditor = ({ workflowId: propWorkflowId, isOrgView = false }) => {
         // RBAC Check
         const pentestCollabs = data.pentest?.collaborators || [];
         const isCollaborator = pentestCollabs.some(c =>
-          c.userId === localUser.id &&
-          ["HACKER", "PROJECT_ADMIN", "ORG_ADMIN"].includes(c.role)
+          (c.userId === localUser?.id || c.userId === authUser?.id) &&
+          ["HACKER", "PROJECT_ADMIN", "ORG_ADMIN"].includes(c.role) &&
+          c.role !== "VIEWER"
         );
         const isOrgAdmin = authUser?.roles?.some(r => r.type === "ORG_ADMIN");
+        const isLead = data.pentest?.leadPentesterId === (localUser?.id || authUser?.id);
 
-        if (!isCollaborator && !isOrgAdmin) {
+        if (!isCollaborator && !isOrgAdmin && !isLead) {
           setCanEdit(false);
           setIsLocked(true);
         }
@@ -563,6 +565,7 @@ const WorkflowEditor = ({ workflowId: propWorkflowId, isOrgView = false }) => {
 
 
   const addNodeByClick = (type) => {
+    if (!canEdit || isLocked) return;
     // Add to center of view
     const position = { x: 250, y: 250 };
     addNode(type, position);
@@ -571,6 +574,7 @@ const WorkflowEditor = ({ workflowId: propWorkflowId, isOrgView = false }) => {
   // Handle Connecting Nodes
   const onConnect = useCallback(
     (params) => {
+      if (!canEdit || isLocked) return;
       const currentNodes = nodesRef.current;
       const currentEdges = edgesRef.current;
       const newEdges = addEdge({ ...params, animated: true, style: { stroke: '#00ff41', strokeWidth: 1.5 } }, currentEdges);
@@ -593,12 +597,14 @@ const WorkflowEditor = ({ workflowId: propWorkflowId, isOrgView = false }) => {
 
   // Handle Drag & Drop Node Creation
   const onDragOver = useCallback((event) => {
+    if (!canEdit || isLocked) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
-  }, []);
+  }, [canEdit, isLocked]);
 
   const onDrop = useCallback(
     (event) => {
+      if (!canEdit || isLocked) return;
       event.preventDefault();
 
       const type = event.dataTransfer.getData('application/reactflow');
@@ -611,7 +617,7 @@ const WorkflowEditor = ({ workflowId: propWorkflowId, isOrgView = false }) => {
 
       addNode(type, position);
     },
-    [reactFlowInstance, addNode]
+    [canEdit, isLocked, reactFlowInstance, addNode]
   );
 
   // Debounce ref for resize saves
@@ -834,12 +840,14 @@ const WorkflowEditor = ({ workflowId: propWorkflowId, isOrgView = false }) => {
           <button className="text-gray-400 hover:text-[#00ff41] transition-colors" title="Comments">
             <FiMessageSquare size={16} />
           </button>
-          <button
-            className="bg-transparent border border-[#00ff41]/50 text-[#00ff41] hover:bg-[#00ff41]/10 px-4 py-1.5 rounded-md text-xs font-bold transition-all active:scale-95"
-            onClick={() => setIsRecordFindingOpen(true)}
-          >
-            RECORD FINDING
-          </button>
+          {canEdit && (
+            <button
+              className="bg-transparent border border-[#00ff41]/50 text-[#00ff41] hover:bg-[#00ff41]/10 px-4 py-1.5 rounded-md text-xs font-bold transition-all active:scale-95"
+              onClick={() => setIsRecordFindingOpen(true)}
+            >
+              RECORD FINDING
+            </button>
+          )}
           <button
             className="bg-[#00ff41] hover:bg-[#00cc33] text-black px-4 py-1.5 rounded-md text-xs font-bold transition-all shadow-[0_0_10px_rgba(0,255,65,0.2)] active:scale-95"
             onClick={() => {
@@ -876,7 +884,7 @@ const WorkflowEditor = ({ workflowId: propWorkflowId, isOrgView = false }) => {
           }
         }}>
 
-        <Sidebar onAdd={addNodeByClick} />
+        {canEdit && <Sidebar onAdd={addNodeByClick} />}
 
         {renderCursors()}
 
@@ -901,10 +909,10 @@ const WorkflowEditor = ({ workflowId: propWorkflowId, isOrgView = false }) => {
               minZoom={0.1}
               maxZoom={10}
               className="bg-transparent"
-              nodesDraggable={!isLocked}
-              nodesConnectable={!isLocked}
-              elementsSelectable={!isLocked}
-              panOnDrag={!isLocked}
+              nodesDraggable={canEdit && !isLocked}
+              nodesConnectable={canEdit && !isLocked}
+              elementsSelectable={canEdit && !isLocked}
+              panOnDrag={true}
             >
               <InteractiveBackground />
               <Panel position="bottom-left">

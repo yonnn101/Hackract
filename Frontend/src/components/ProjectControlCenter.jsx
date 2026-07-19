@@ -431,7 +431,7 @@ const ProjectControlCenter = ({ projectId, onBack }) => {
   }, [projectId, authUser, canManageInvitations]);
 
   const hackers = useMemo(() => {
-    return project?.collaborators?.filter((c) => c.role === "HACKER" || c.role === "PROJECT_ADMIN" || c.role === "PENTESTER") || [];
+    return project?.collaborators || [];
   }, [project]);
 
   const assignedIds = useMemo(() => {
@@ -625,26 +625,36 @@ const ProjectControlCenter = ({ projectId, onBack }) => {
               <div className="space-y-4">
                 {hackers.map((hacker) => {
                   const isLead = hacker.role === "PROJECT_ADMIN";
+                  const isViewer = hacker.role === "VIEWER";
                   return (
                     <div key={hacker.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-[#1a1d24] border border-gray-800/50 rounded hover:border-[#00c477]/30 transition-colors group gap-4">
                       <div className="flex items-center gap-4">
                         <div className="relative shrink-0">
-                          <div className="w-12 h-12 bg-black border border-gray-700 flex items-center justify-center overflow-hidden text-[#00c477] font-black text-xl">
+                          <div className={`w-12 h-12 bg-black border flex items-center justify-center overflow-hidden font-black text-xl ${
+                            isViewer ? 'text-sky-400 border-sky-500/40' : 'text-[#00c477] border-gray-700'
+                          }`}>
                             {hacker.user?.fullName?.[0]?.toUpperCase() || "?"}
                           </div>
-                          <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-[#00c477] border-2 border-[#1a1d24]" />
+                          <div className={`absolute -bottom-1 -right-1 w-3 h-3 border-2 border-[#1a1d24] ${
+                            isViewer ? 'bg-sky-400' : 'bg-[#00c477]'
+                          }`} />
                         </div>
                         <div className="overflow-hidden">
                           <div className="text-sm font-bold text-gray-200 tracking-wider uppercase truncate">{hacker.user?.fullName || hacker.user?.email}</div>
                           <div className="flex items-center gap-3 mt-1 flex-wrap">
-                            <span className="text-[9px] bg-[#1a3a2d] text-[#00c477] px-1.5 py-0.5 uppercase tracking-widest">ACCEPTED</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 uppercase tracking-widest ${
+                              isViewer ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30' : 'bg-[#1a3a2d] text-[#00c477]'
+                            }`}>
+                              {isViewer ? 'VIEWER' : 'ACCEPTED'}
+                            </span>
+                            {hacker.user?.handle && (
+                              <span className="text-[10px] text-gray-500 font-mono">@{hacker.user.handle}</span>
+                            )}
                           </div>
                         </div>
                       </div>
 
                       <div className="flex items-center justify-between sm:justify-end gap-8">
-                        
-
                         {isLead ? (
                           <div className="flex items-center gap-2">
                             <div className="text-[#00c477] border border-[#00c477]/30 px-4 py-2 rounded text-[10px] font-black uppercase tracking-widest bg-[#00c477]/5 whitespace-nowrap">
@@ -658,6 +668,19 @@ const ProjectControlCenter = ({ projectId, onBack }) => {
                                 REMOVE_ADMIN
                               </button>
                             )}
+                          </div>
+                        ) : isViewer ? (
+                          <div className="flex items-center gap-2">
+                            <div className="text-sky-400 border border-sky-500/30 px-4 py-2 rounded text-[10px] font-black uppercase tracking-widest bg-sky-500/5 whitespace-nowrap">
+                              VIEWER_ONLY
+                            </div>
+                            <button
+                              onClick={() => handleRemoveHacker(hacker.userId)}
+                              className="text-gray-600 hover:text-rose-500 p-2 rounded hover:bg-rose-500/10 transition-all"
+                              title="Revoke Viewer Access"
+                            >
+                              <FiTrash2 size={16} />
+                            </button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
