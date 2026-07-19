@@ -6,7 +6,7 @@ import NotificationPanel from '../components/NotificationPanel.jsx';
 import {
   FiGrid, FiBriefcase, FiGlobe, FiShield, FiSettings,
   FiFileText, FiBell, FiChevronDown, FiPlus, FiCpu,
-  FiActivity, FiTarget, FiZap, FiLogOut, FiMessageSquare
+  FiActivity, FiTarget, FiZap, FiLogOut, FiMessageSquare, FiUser
 } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -14,12 +14,10 @@ const OrganizationLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  const { unreadCount } = useNotifications();
+  const { unreadCount, unreadMessagesCount } = useNotifications();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
-  // Chat-specific unread count for the Messages nav badge
-  const { notifications } = useNotifications();
-  const unreadChatCount = notifications.filter(n => n.type === 'CHAT_MESSAGE' && !n.isRead).length;
+  const unreadChatCount = unreadMessagesCount;
 
   const orgName = user?.organization?.name || "Organization";
   const userInitial = user?.fullName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "O";
@@ -30,7 +28,8 @@ const OrganizationLayout = () => {
     { icon: FiGlobe, label: 'DISCOVER', route: '/discover' },
     { icon: FiMessageSquare, label: 'MESSAGES', route: '/org-messages', badge: unreadChatCount },
     { icon: FiShield, label: 'LEGAL AGREEMENTS', route: '/legal' },
-    { icon: FiSettings, label: 'SETTINGS', route: '/organization-profile' },
+    { icon: FiUser, label: 'PROFILE', route: '/organization-profile' },
+    { icon: FiSettings, label: 'SETTINGS', route: '/organization-settings' },
     { icon: FiFileText, label: 'REPORTS', route: '/reports' },
   ];
 

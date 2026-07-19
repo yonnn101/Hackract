@@ -67,6 +67,13 @@ export const getUserConversations = async (userId) => {
     orderBy: { lastMessageAt: 'desc' },
   });
 };
+export const getUnreadMessagesCount = async (userId) => {
+  const result = await prisma.conversationParticipant.aggregate({
+    where: { userId },
+    _sum: { unreadCount: true },
+  });
+  return result._sum.unreadCount || 0;
+};
 
 export const getConversationById = async (conversationId, userId) => {
   return prisma.conversation.findFirst({

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/authContext.jsx';
+import { useNotifications } from '../context/NotificationContext.jsx';
+import NotificationPanel from '../components/NotificationPanel.jsx';
 import {
   FiGrid,
   FiFolder,
@@ -15,13 +17,16 @@ import {
   FiLogOut,
   FiPenTool,
   FiClipboard,
+  FiUser,
 } from 'react-icons/fi';
 
 const ProjectAdminLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { unreadCount, unreadMessagesCount } = useNotifications();
 
   const handleLogout = async () => {
     await logout();
@@ -34,10 +39,11 @@ const ProjectAdminLayout = () => {
   const navItems = [
     { icon: FiGrid,          label: 'Dashboard',    route: '/admin-dashboard' },
     { icon: FiFolder,        label: 'Projects',     route: '/pa-projects' },
-    { icon: FiMessageSquare, label: 'Messages',     route: '/pa-messages' },
+    { icon: FiMessageSquare, label: 'Messages',     route: '/pa-messages', badge: unreadMessagesCount },
     { icon: FiClipboard,     label: 'Reports',      route: '/pa-reports' },
     { icon: FiPenTool,       label: 'Agreements',   route: '/pa-agreement' },
-    { icon: FiSettings,      label: 'Settings',     route: '/pa-profile' },
+    { icon: FiUser,          label: 'Profile',      route: '/pa-profile' },
+    { icon: FiSettings,      label: 'Settings',     route: '/pa-settings' },
   ];
 
   const isActive = (route) => {
@@ -104,7 +110,12 @@ const ProjectAdminLayout = () => {
                   }`}
               >
                 <item.icon className={isActive(item.route) ? 'text-[#38bdf8]' : ''} />
-                <span className="font-medium">{item.label}</span>
+                <span className="font-medium flex-1">{item.label}</span>
+                {item.badge > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-[#38bdf8] text-black text-[9px] font-black flex items-center justify-center shrink-0">
+                    {item.badge > 9 ? '9+' : item.badge}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -146,10 +157,26 @@ const ProjectAdminLayout = () => {
           </div>
 
           <div className="flex items-center space-x-4">
-            <button className="relative text-gray-400 hover:text-white transition-colors hidden sm:block">
+            <button 
+              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} 
+              className="relative text-gray-400 hover:text-white transition-colors block"
+            >
               <FiBell size={20} />
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-[#38bdf8] rounded-full" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#38bdf8] text-black text-[9px] flex items-center justify-center rounded-full font-black border-2 border-[#050505]">
+                  {unreadCount}
+                </span>
+              )}
             </button>
+
+            <AnimatePresence>
+              {isNotificationsOpen && (
+                <NotificationPanel
+                  isOpen={isNotificationsOpen}
+                  onClose={() => setIsNotificationsOpen(false)}
+                />
+              )}
+            </AnimatePresence>
             <div
               className="flex items-center space-x-2 border-l border-white/10 pl-4 cursor-pointer"
               onClick={() => navigate('/pa-profile')}

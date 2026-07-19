@@ -38,16 +38,34 @@ export default function OrganizationChat() {
   const prevConvId = useRef(null);
 
   const handleNewMessage = useCallback((msg) => {
-    setMessages((prev) => prev.find((m) => m.id === msg.id) ? prev : [...prev, msg]);
+    setMessages((prev) => {
+      if (active?.id !== msg.conversationId) return prev;
+      return prev.find((m) => m.id === msg.id) ? prev : [...prev, msg];
+    });
     setConversations((prev) =>
-      prev.map((c) => c.id === msg.conversationId
-        ? { ...c, lastMessageAt: msg.createdAt, lastMessagePreview: msg.content?.slice(0, 80) || '📎' }
-        : c).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt))
+      prev.map((c) => {
+        if (c.id === msg.conversationId) {
+          const isViewing = active?.id === msg.conversationId;
+          const isSender = msg.senderId === user?.id;
+          return {
+            ...c,
+            lastMessageAt: msg.createdAt,
+            lastMessagePreview: msg.content?.slice(0, 80) || '📎',
+            participants: c.participants?.map((p) =>
+              p.userId === user?.id && !isSender && !isViewing
+                ? { ...p, unreadCount: (p.unreadCount || 0) + 1 }
+                : p
+            ),
+          };
+        }
+        return c;
+      }).sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0))
     );
     if (active && msg.conversationId === active.id && msg.senderId !== user?.id) {
-        markChatAsRead(active.id);
+      chatApi.markRead(active.id).catch(() => { });
+      markChatAsRead(active.id);
     }
-  }, [active, markChatAsRead, user?.id]);
+  }, [active?.id, markChatAsRead, user?.id]);
 
   const handlePresenceUpdate = useCallback((userId, isOnline, lastSeenAt) => {
     setPresenceMap((prev) => ({ ...prev, [userId]: { isOnline, lastSeenAt } }));
@@ -70,8 +88,36 @@ export default function OrganizationChat() {
     setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, deletedAt: new Date().toISOString() } : m));
   }, []);
 
+  const handleReadReceipt = useCallback((conversationId, userId, readAt) => {
+    if (active?.id !== conversationId) return;
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (msg.senderId === user?.id) {
+          const alreadyRead = msg.readBy?.some((r) => r.userId === userId);
+          if (!alreadyRead) {
+            return {
+              ...msg,
+              readBy: [...(msg.readBy || []), { userId, readAt }],
+            };
+          }
+        }
+        return msg;
+      })
+    );
+  }, [active?.id, user?.id]);
+
   const { connected, joinConversation, leaveConversation: leaveConv, emitTypingStart, emitTypingStop, emitMarkRead } =
-    useChatSocket({ token: accessToken, currentUserId: user?.id, onNewMessage: handleNewMessage, onPresenceUpdate: handlePresenceUpdate, onTyping: handleTyping, onStopTyping: handleStopTyping, onMessageEdited: handleMessageEdited, onMessageDeleted: handleMessageDeleted });
+    useChatSocket({
+      token: accessToken,
+      currentUserId: user?.id,
+      onNewMessage: handleNewMessage,
+      onPresenceUpdate: handlePresenceUpdate,
+      onTyping: handleTyping,
+      onStopTyping: handleStopTyping,
+      onMessageEdited: handleMessageEdited,
+      onMessageDeleted: handleMessageDeleted,
+      onReadReceipt: handleReadReceipt,
+    });
 
   useEffect(() => {
     if (!user) return;
@@ -104,7 +150,7 @@ export default function OrganizationChat() {
     try {
       const result = await chatApi.getMessages(conv.id);
       setMessages(result.messages); setNextCursor(result.nextCursor); setHasMore(result.hasMore);
-      emitMarkRead(conv.id); chatApi.markRead(conv.id).catch(() => {});
+      emitMarkRead(conv.id); chatApi.markRead(conv.id).catch(() => { });
       setConversations((prev) => prev.map((c) => c.id === conv.id
         ? { ...c, participants: c.participants?.map((p) => p.userId === user?.id ? { ...p, unreadCount: 0 } : p) } : c));
     } catch (e) { console.error(e); } finally { setLoadingMsgs(false); }
@@ -129,8 +175,8 @@ export default function OrganizationChat() {
       setEditing(null); return;
     }
     setReplyTo(null);
-    try { 
-      const msg = await chatApi.sendMessage(active.id, payload); 
+    try {
+      const msg = await chatApi.sendMessage(active.id, payload);
       setMessages((prev) => prev.find((m) => m.id === msg.id) ? prev : [...prev, msg]);
     }
     catch (e) { console.error(e); }
@@ -188,7 +234,7 @@ export default function OrganizationChat() {
             {messages.map((msg, idx) => (
               <MessageBubble key={msg.id} message={msg} isOwn={msg.senderId === user?.id} onReply={setReplyTo} onEdit={(m) => setEditing(m)} onDelete={handleDelete} />
             ))}
-            {typingIds.length > 0 && <div className="text-[9px] text-[#00c477] font-black uppercase tracking-widest animate-pulse">Researching_Input...</div>}
+            {typingIds.length > 0 && <div className="text-[9px] text-[#00c477] font-black uppercase tracking-widest animate-pulse">Typing...</div>}
             <div ref={messagesEndRef} />
           </div>
 

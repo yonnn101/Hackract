@@ -23,6 +23,7 @@ export default function MessageBubble({ message, isOwn, onReply, onEdit, onDelet
   const isVideo = message.type === 'VIDEO' || (message.fileUrl && isVideoMime(message.fileMime));
   const senderName = message.sender?.fullName || message.sender?.handle;
   const replySenderName = message.replyTo?.sender?.fullName || message.replyTo?.sender?.handle;
+  const isRead = message.readBy?.some(r => r.userId !== message.senderId);
 
   return (
     <motion.div
@@ -147,7 +148,9 @@ export default function MessageBubble({ message, isOwn, onReply, onEdit, onDelet
               {isOwn && !deleted && (
                 <svg className="w-3.5 h-3.5 text-[#dcecff]/80" viewBox="0 0 16 11" fill="currentColor">
                   <path d="M11.071.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.085 0l-3-3.5a.75.75 0 1 1 1.138-.976L4.01 7.06l5.99-6.44a.75.75 0 0 1 1.07.033Z" />
-                  <path d="M14.07.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.085 0 .75.75 0 0 1 0-1.06l6.5-7a.75.75 0 0 1 1.06-.025z" />
+                  {isRead && (
+                    <path d="M14.07.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.085 0 .75.75 0 0 1 0-1.06l6.5-7a.75.75 0 0 1 1.06-.025z" />
+                  )}
                 </svg>
               )}
             </div>

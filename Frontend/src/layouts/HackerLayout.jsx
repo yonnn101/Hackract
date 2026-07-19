@@ -20,6 +20,7 @@ import {
   FiShield,
   FiPenTool,
   FiMonitor,
+  FiUser,
 } from 'react-icons/fi';
 import { ROLES, isOrgAdminMember } from '../utils/roles.js';
 const HackerLayout = () => {
@@ -27,12 +28,10 @@ const HackerLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, hasAnyRole } = useAuth();
-  const { unreadCount } = useNotifications();
+  const { unreadCount, unreadMessagesCount } = useNotifications();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
-  // Count unread chat notifications specifically for badge on Messages nav
-  const { notifications } = useNotifications();
-  const unreadChatCount = notifications.filter(n => n.type === 'CHAT_MESSAGE' && !n.isRead).length;
+  const unreadChatCount = unreadMessagesCount;
 
   const handleLogout = async () => {
     await logout();
@@ -49,7 +48,8 @@ const HackerLayout = () => {
     { icon: FiShield, label: 'Findings', route: '/findings' },
     { icon: FiMessageSquare, label: 'Messages', route: '/messages', badge: unreadChatCount },
     { icon: FiFileText, label: 'Reports', route: '/hacker-reports' },
-    { icon: FiSettings, label: 'Settings', route: '/hacker-profile' },
+    { icon: FiUser, label: 'Profile', route: '/hacker-profile' },
+    { icon: FiSettings, label: 'Settings', route: '/hacker-settings' },
     { icon: FiPenTool, label: 'Legal Agreement', route: '/execute-agreement' },
   ];
 

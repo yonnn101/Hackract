@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useChatSocket } from '../hooks/useChatSocket';
 import * as chatApi from '../api/chatApi';
 import { useAuth } from '../context/authContext';
+import { useNotifications } from '../context/NotificationContext';
 import Avatar from '../components/chat/Avatar';
 import MessageBubble from '../components/chat/MessageBubble';
 import ChatSidebar from '../components/chat/ChatSidebar';
@@ -39,6 +40,7 @@ const playNotificationSound = () => {
 
 export default function Chat() {
   const { user, accessToken } = useAuth();
+  const { markChatAsRead } = useNotifications();
   const [conversations, setConversations] = useState([]);
   const [active, setActive] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -54,13 +56,34 @@ export default function Chat() {
   const prevConvId = useRef(null);
 
   const handleNewMessage = useCallback((msg) => {
-    setMessages((prev) => prev.find((m) => m.id === msg.id) ? prev : [...prev, msg]);
+    setMessages((prev) => {
+      if (active?.id !== msg.conversationId) return prev;
+      return prev.find((m) => m.id === msg.id) ? prev : [...prev, msg];
+    });
     setConversations((prev) =>
-      prev.map((c) => c.id === msg.conversationId
-        ? { ...c, lastMessageAt: msg.createdAt, lastMessagePreview: msg.content?.slice(0, 80) || '📎' }
-        : c).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt))
+      prev.map((c) => {
+        if (c.id === msg.conversationId) {
+          const isViewing = active?.id === msg.conversationId;
+          const isSender = msg.senderId === user?.id;
+          return {
+            ...c,
+            lastMessageAt: msg.createdAt,
+            lastMessagePreview: msg.content?.slice(0, 80) || '📎',
+            participants: c.participants?.map((p) =>
+              p.userId === user?.id && !isSender && !isViewing
+                ? { ...p, unreadCount: (p.unreadCount || 0) + 1 }
+                : p
+            ),
+          };
+        }
+        return c;
+      }).sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0))
     );
-  }, []);
+    if (active && msg.conversationId === active.id && msg.senderId !== user?.id) {
+        chatApi.markRead(active.id).catch(() => {});
+        markChatAsRead(active.id);
+    }
+  }, [active?.id, markChatAsRead, user?.id]);
 
   const handlePresenceUpdate = useCallback((userId, isOnline, lastSeenAt) => {
     setPresenceMap((prev) => ({ ...prev, [userId]: { isOnline, lastSeenAt } }));
@@ -83,8 +106,36 @@ export default function Chat() {
     setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, deletedAt: new Date().toISOString() } : m));
   }, []);
 
+  const handleReadReceipt = useCallback((conversationId, userId, readAt) => {
+    if (active?.id !== conversationId) return;
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (msg.senderId === user?.id) {
+          const alreadyRead = msg.readBy?.some((r) => r.userId === userId);
+          if (!alreadyRead) {
+            return {
+              ...msg,
+              readBy: [...(msg.readBy || []), { userId, readAt }],
+            };
+          }
+        }
+        return msg;
+      })
+    );
+  }, [active?.id, user?.id]);
+
   const { connected, joinConversation, leaveConversation: leaveConv, emitTypingStart, emitTypingStop, emitMarkRead } =
-    useChatSocket({ token: accessToken, currentUserId: user?.id, onNewMessage: handleNewMessage, onPresenceUpdate: handlePresenceUpdate, onTyping: handleTyping, onStopTyping: handleStopTyping, onMessageEdited: handleMessageEdited, onMessageDeleted: handleMessageDeleted });
+    useChatSocket({
+      token: accessToken,
+      currentUserId: user?.id,
+      onNewMessage: handleNewMessage,
+      onPresenceUpdate: handlePresenceUpdate,
+      onTyping: handleTyping,
+      onStopTyping: handleStopTyping,
+      onMessageEdited: handleMessageEdited,
+      onMessageDeleted: handleMessageDeleted,
+      onReadReceipt: handleReadReceipt,
+    });
 
   useEffect(() => {
     if (!user) return;
@@ -113,6 +164,7 @@ export default function Chat() {
     setActive(conv); prevConvId.current = conv.id;
     setMessages([]); setNextCursor(null); setHasMore(false); setReplyTo(null); setEditing(null);
     joinConversation(conv.id); setLoadingMsgs(true);
+    markChatAsRead(conv.id);
     try {
       const result = await chatApi.getMessages(conv.id);
       setMessages(result.messages); setNextCursor(result.nextCursor); setHasMore(result.hasMore);
@@ -120,7 +172,7 @@ export default function Chat() {
       setConversations((prev) => prev.map((c) => c.id === conv.id
         ? { ...c, participants: c.participants?.map((p) => p.userId === user?.id ? { ...p, unreadCount: 0 } : p) } : c));
     } catch (e) { console.error(e); } finally { setLoadingMsgs(false); }
-  }, [joinConversation, leaveConv, emitTypingStop, emitMarkRead, user?.id]);
+  }, [joinConversation, leaveConv, emitTypingStop, emitMarkRead, user?.id, markChatAsRead]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || !nextCursor || !active || loadingMsgs) return;

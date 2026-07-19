@@ -67,6 +67,8 @@ router.post('/upload', s3Upload.single('file'), controller.uploadFile);
  *         description: Conversations list
  */
 router.get('/conversations', controller.getMyConversations);
+router.get('/conversations/unread-count', controller.getUnreadMessagesCount);
+
 
 /**
  * @swagger

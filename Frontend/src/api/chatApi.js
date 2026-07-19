@@ -17,6 +17,10 @@ export const uploadFile = (file) => {
 export const getConversations = () =>
   api.get(`${BASE}/conversations`).then((r) => r.data.data.conversations);
 
+export const getUnreadMessagesCount = () =>
+  api.get(`${BASE}/conversations/unread-count`).then((r) => r.data.data.count);
+
+
 export const startDirectConversation = (targetUserId) =>
   api.post(`${BASE}/conversations/direct`, { targetUserId }).then((r) => r.data.data.conversation);
 

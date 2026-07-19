@@ -18,6 +18,24 @@ export function useChatSocket({
   const [connected, setConnected] = useState(false);
   const typingTimers = useRef({});
 
+  const onNewMessageRef = useRef(onNewMessage);
+  const onPresenceUpdateRef = useRef(onPresenceUpdate);
+  const onTypingRef = useRef(onTyping);
+  const onStopTypingRef = useRef(onStopTyping);
+  const onReadReceiptRef = useRef(onReadReceipt);
+  const onMessageEditedRef = useRef(onMessageEdited);
+  const onMessageDeletedRef = useRef(onMessageDeleted);
+
+  useEffect(() => {
+    onNewMessageRef.current = onNewMessage;
+    onPresenceUpdateRef.current = onPresenceUpdate;
+    onTypingRef.current = onTyping;
+    onStopTypingRef.current = onStopTyping;
+    onReadReceiptRef.current = onReadReceipt;
+    onMessageEditedRef.current = onMessageEdited;
+    onMessageDeletedRef.current = onMessageDeleted;
+  });
+
   useEffect(() => {
     if (!token) return;
 
@@ -50,34 +68,34 @@ export function useChatSocket({
 
     // ── Message events ──────────────────────────────────────────────────
     socket.on('chat:new-message', (message) => {
-      onNewMessage?.(message);
+      onNewMessageRef.current?.(message);
     });
 
     socket.on('chat:message-edited', (message) => {
-      onMessageEdited?.(message);
+      onMessageEditedRef.current?.(message);
     });
 
     socket.on('chat:message-deleted', ({ conversationId, messageId }) => {
-      onMessageDeleted?.(conversationId, messageId);
+      onMessageDeletedRef.current?.(conversationId, messageId);
     });
 
     // ── Presence events ─────────────────────────────────────────────────
     socket.on('chat:presence-update', ({ userId, isOnline, lastSeenAt }) => {
-      onPresenceUpdate?.(userId, isOnline, lastSeenAt);
+      onPresenceUpdateRef.current?.(userId, isOnline, lastSeenAt);
     });
 
     // ── Typing events ───────────────────────────────────────────────────
     socket.on('chat:typing', ({ userId, conversationId }) => {
-      onTyping?.(userId, conversationId);
+      onTypingRef.current?.(userId, conversationId);
     });
 
     socket.on('chat:stop-typing', ({ userId, conversationId }) => {
-      onStopTyping?.(userId, conversationId);
+      onStopTypingRef.current?.(userId, conversationId);
     });
 
     // ── Read receipts ───────────────────────────────────────────────────
     socket.on('chat:read-receipt', ({ conversationId, userId, readAt }) => {
-      onReadReceipt?.(conversationId, userId, readAt);
+      onReadReceiptRef.current?.(conversationId, userId, readAt);
     });
 
     return () => {

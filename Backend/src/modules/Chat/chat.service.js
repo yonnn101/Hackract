@@ -29,6 +29,11 @@ export const getUserConversations = async (userId) => {
   return repo.getUserConversations(userId);
 };
 
+export const getUnreadMessagesCount = async (userId) => {
+  return repo.getUnreadMessagesCount(userId);
+};
+
+
 export const getConversation = async (conversationId, userId) => {
   const conversation = await repo.getConversationById(conversationId, userId);
   if (!conversation) throw new AppError('Conversation not found', 404);

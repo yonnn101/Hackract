@@ -12,6 +12,14 @@ export const getMyConversations = async (req, res, next) => {
   } catch (e) { next(e); }
 };
 
+export const getUnreadMessagesCount = async (req, res, next) => {
+  try {
+    const count = await service.getUnreadMessagesCount(req.user.id);
+    ok(res, { count });
+  } catch (e) { next(e); }
+};
+
+
 export const startDirectConversation = async (req, res, next) => {
   try {
     const conversation = await service.getOrCreateDirectConversation(
