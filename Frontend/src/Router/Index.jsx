@@ -12,6 +12,8 @@ import ForgotPassword from "../pages/ForgotPassword.jsx";
 import ResetPassword from "../pages/ResetPassword.jsx";
 import HackerProfile from "../pages/HackerProfile.jsx";
 import OrganizationProfile from "../pages/OrganizationProfile.jsx";
+import HackerSettings from "../pages/HackerSettings.jsx";
+import OrganizationSettings from "../pages/OrganizationSettings.jsx";
 import WorkflowEditor from "../pages/WorkflowEditor/WorkflowEditor.jsx";
 import HackerVerification from "../pages/HackerVerification.jsx";
 import OrganizationVerification from "../pages/OrganizationVerification.jsx";
@@ -99,6 +101,10 @@ const router = createBrowserRouter([
           {
             path: "hacker-profile",
             element: <HackerProfile />,
+          },
+          {
+            path: "hacker-settings",
+            element: <HackerSettings />,
           },
           {
             path: "hacker-verification",
@@ -197,6 +203,10 @@ const router = createBrowserRouter([
             element: <HackerProfile />,
           },
           {
+            path: "pa-settings",
+            element: <HackerSettings />,
+          },
+          {
             path: "pa-agreement",
             element: <AgreementExecute />,
           },
@@ -246,6 +256,10 @@ const router = createBrowserRouter([
           {
             path: "organization-profile",
             element: <OrganizationProfile />,
+          },
+          {
+            path: "organization-settings",
+            element: <OrganizationSettings />,
           },
           {
             path: "org-findings",
