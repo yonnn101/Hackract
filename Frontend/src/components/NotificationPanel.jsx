@@ -95,7 +95,7 @@ const NotificationPanel = ({ isOpen, onClose }) => {
                                                 {notif.title}
                                             </p>
                                             <span className="text-[9px] text-gray-600 font-mono whitespace-nowrap">
-                                                {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                {new Date(notif.createdAt || notif.timestamp || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                         </div>
                                         <p className="text-[11px] text-gray-400 leading-relaxed font-mono">

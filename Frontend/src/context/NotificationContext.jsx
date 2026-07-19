@@ -1,86 +1,97 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useAuth } from './authContext.jsx';
+import * as notificationApi from '../api/notificationApi';
+import * as chatApi from '../api/chatApi';
 
 const NotificationContext = createContext();
 
 export const NotificationProvider = ({ children }) => {
     const { user } = useAuth();
-    const userId = user?.id || 'guest';
-    const storageKey = `hackract_notifications_${userId}`;
+    const userId = user?.id;
 
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
-    // Sync from localStorage whenever user changes
+    // Fetch from backend whenever user changes
     useEffect(() => {
-        const saved = localStorage.getItem(storageKey);
-        const list = saved ? JSON.parse(saved) : [];
-        setNotifications(list);
-        setUnreadCount(list.filter(n => !n.isRead).length);
-    }, [storageKey]);
+        if (!userId) {
+            setNotifications([]);
+            setUnreadCount(0);
+            return;
+        }
+
+        notificationApi.getNotifications().then((res) => {
+            setNotifications(res.notifications || []);
+        }).catch(console.error);
+
+        notificationApi.getUnreadCount().then((count) => {
+            setUnreadCount(count || 0);
+        }).catch(console.error);
+
+        chatApi.getUnreadMessagesCount().then((count) => {
+            setUnreadMessagesCount(count || 0);
+        }).catch(console.error);
+    }, [userId]);
 
     const addNotification = useCallback((notification) => {
-        const newNotification = {
-            id: Date.now(),
-            isRead: false,
-            ...notification,
-            timestamp: notification.timestamp || new Date().toISOString()
-        };
-        setNotifications(prev => {
-            const updated = [newNotification, ...prev].slice(0, 50);
-            localStorage.setItem(storageKey, JSON.stringify(updated));
-            return updated;
-        });
+        // Assume notification from socket already has an ID from backend
+        setNotifications(prev => [notification, ...prev].slice(0, 50));
         setUnreadCount(prev => prev + 1);
-    }, [storageKey]);
+        if (notification.type === 'CHAT_MESSAGE' && window.activeConversationId !== notification.conversationId) {
+            setUnreadMessagesCount(prev => prev + 1);
+        }
+    }, []);
 
     const markAsRead = useCallback((id) => {
-        setNotifications(prev => {
-            const updated = prev.map(n => 
-                n.id === id && !n.isRead ? { ...n, isRead: true } : n
-            );
-            localStorage.setItem(storageKey, JSON.stringify(updated));
-            return updated;
-        });
+        setNotifications(prev => prev.map(n => 
+            n.id === id && !n.isRead ? { ...n, isRead: true } : n
+        ));
         setUnreadCount(prev => Math.max(0, prev - 1));
-    }, [storageKey]);
+        notificationApi.markAsRead(id).catch(console.error);
+    }, []);
 
     const markAllAsRead = useCallback(() => {
-        setNotifications(prev => {
-            const updated = prev.map(n => ({ ...n, isRead: true }));
-            localStorage.setItem(storageKey, JSON.stringify(updated));
-            return updated;
-        });
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
         setUnreadCount(0);
-    }, [storageKey]);
+        notificationApi.markAllAsRead().catch(console.error);
+    }, []);
 
     const markChatAsRead = useCallback((conversationId) => {
         setNotifications(prev => {
-            const updated = prev.map(n => 
-                n.type === 'CHAT_MESSAGE' && n.conversationId === conversationId && !n.isRead 
-                ? { ...n, isRead: true } 
-                : n
-            );
-            localStorage.setItem(storageKey, JSON.stringify(updated));
+            let changed = false;
+            const updated = prev.map(n => {
+                if (n.type === 'CHAT_MESSAGE' && n.conversationId === conversationId && !n.isRead) {
+                    changed = true;
+                    return { ...n, isRead: true };
+                }
+                return n;
+            });
             
-            // Recalculate unread count
-            const newUnread = updated.filter(n => !n.isRead).length;
-            setUnreadCount(newUnread);
-            
+            if (changed) {
+                const newUnread = updated.filter(n => !n.isRead).length;
+                setUnreadCount(newUnread);
+                notificationApi.markChatAsRead(conversationId).catch(console.error);
+            }
             return updated;
         });
-    }, [storageKey]);
+        chatApi.getUnreadMessagesCount().then((count) => {
+            setUnreadMessagesCount(count || 0);
+        }).catch(console.error);
+    }, []);
 
     const clearNotifications = useCallback(() => {
         setNotifications([]);
         setUnreadCount(0);
-        localStorage.removeItem(storageKey);
-    }, [storageKey]);
+        notificationApi.clearNotifications().catch(console.error);
+    }, []);
 
     return (
         <NotificationContext.Provider value={{
             notifications,
             unreadCount,
+            unreadMessagesCount,
+            setUnreadMessagesCount,
             addNotification,
             markAsRead,
             markChatAsRead,
