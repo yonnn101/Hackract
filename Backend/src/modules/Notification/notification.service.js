@@ -8,6 +8,8 @@ export const pushNotification = async (userId, data, io) => {
     title: data.title,
     message: data.message,
     conversationId: data.conversationId || null,
+    pentestId: data.pentestId || null,
+    findingId: data.findingId || null,
   });
 
   // Push to active socket connections

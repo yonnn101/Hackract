@@ -8,24 +8,53 @@ import { useAuth } from '../context/authContext.jsx';
 const NotificationPanel = ({ isOpen, onClose }) => {
     const { notifications, markAsRead, markAllAsRead, clearNotifications } = useNotifications();
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, hasRole } = useAuth();
 
     const handleNotificationClick = (notif) => {
         markAsRead(notif.id);
         
+        const isOrg = hasRole('ORG_ADMIN');
+        const isPA  = hasRole('PROJECT_ADMIN');
+        const isHacker = hasRole('PENTESTER');
+
         if (notif.type === 'CHAT_MESSAGE') {
-            const isOrg = user?.roles?.some(r => r.type === 'ORG_ADMIN');
-            const isPA  = user?.roles?.some(r => r.type === 'PROJECT_ADMIN');
             if (isOrg) navigate('/org-messages');
             else if (isPA) navigate('/pa-messages');
             else navigate('/messages');
-        } else if (notif.pentestId) {
-            const isOrg = user?.roles?.some(r => r.type === 'ORG_ADMIN');
-            if (isOrg) {
-                navigate(`/org-projects/${notif.pentestId}`);
-            } else {
-                navigate(`/projects/${notif.pentestId}`);
+        } else if (notif.type === 'NEW_FINDING' || notif.type === 'FINDING_COMMENT' || notif.type?.includes('STATUS_CHANGE')) {
+            if (notif.findingId) {
+                if (isOrg) navigate(`/org-findings/${notif.findingId}`);
+                else if (isPA) navigate(`/pa-findings/${notif.findingId}`);
+                else navigate(`/findings/${notif.findingId}`);
+            } else if (notif.pentestId) {
+                if (isOrg) navigate(`/org-projects/${notif.pentestId}`);
+                else if (isPA) navigate(`/pa-projects/${notif.pentestId}`);
+                else navigate(`/projects/${notif.pentestId}`);
             }
+        } else if (notif.type?.includes('INVITE')) {
+            if (isHacker) {
+                if (notif.pentestId) {
+                    navigate(`/execute-agreement`);
+                } else {
+                    navigate('/projects');
+                }
+            } else if (isOrg) {
+                if (notif.pentestId) {
+                    navigate(`/org-projects/${notif.pentestId}`);
+                } else {
+                    navigate('/org-projects');
+                }
+            } else if (isPA) {
+                if (notif.pentestId) {
+                    navigate(`/pa-projects/${notif.pentestId}`);
+                } else {
+                    navigate('/pa-projects');
+                }
+            }
+        } else if (notif.pentestId) {
+            if (isOrg) navigate(`/org-projects/${notif.pentestId}`);
+            else if (isPA) navigate(`/pa-projects/${notif.pentestId}`);
+            else navigate(`/projects/${notif.pentestId}`);
         }
         onClose();
     };

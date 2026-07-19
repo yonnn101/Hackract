@@ -751,6 +751,8 @@ model Notification {
   title          String
   message        String
   conversationId String?
+  pentestId      String?
+  findingId      String?
   isRead         Boolean  @default(false)
   createdAt      DateTime @default(now())
 
