@@ -11,6 +11,7 @@ import { upsertUserPresence } from "./src/modules/Chat/chat.repository.js";
 import { setupTerminalSocket } from "./src/modules/Terminal/terminal.socket.js";
 import { setupAgentSocket } from "./src/modules/AiAgent/agent.socket.js";
 import { initializeStorage } from "./src/utils/s3Upload.js";
+import { pushNotification } from "./src/modules/Notification/notification.service.js";
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "127.0.0.1";
@@ -36,11 +37,15 @@ const decodeSocketUser = async (socket) => {
     const cookies = parseCookies(socket.request?.headers?.cookie);
     const cookieToken = cookies?.accessToken;
 
-    const token =
+    let token =
       socket.handshake.auth?.token ||
       cookieToken ||
       socket.handshake.headers?.authorization?.replace("Bearer ", "");
     
+    if (token === 'cookie-session') {
+      token = cookieToken;
+    }
+
     if (!token) {
       console.warn("🔌 Socket: No token provided");
       return null;
@@ -85,7 +90,11 @@ const startServer = async () => {
   const server = http.createServer(app);
 
   const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] },
+    cors: {
+      origin: process.env.FRONTEND_BASE_URL || 'http://localhost:5173',
+      methods: ["GET", "POST"],
+      credentials: true
+    },
   });
 
   // ── In-memory state ────────────────────────────────────────────────────────
@@ -270,9 +279,17 @@ const startServer = async () => {
         include: { participants: { select: { userId: true } } }
       });
       if (conv) {
-        conv.participants.forEach(p => {
+        for (const p of conv.participants) {
           io.to(`user:${p.userId}`).emit("chat:new-message", message);
-        });
+          if (p.userId !== message.senderId) {
+            pushNotification(p.userId, {
+              type: 'CHAT_MESSAGE',
+              title: message.sender?.fullName || message.sender?.handle || 'New Message',
+              message: message.content || '📎 Attachment',
+              conversationId,
+            }, io).catch(console.error);
+          }
+        }
       }
     } catch (err) {
       console.error("Error in broadcastChatMessage:", err);
@@ -315,10 +332,7 @@ const startServer = async () => {
 
   app.locals.sendNotification = (userId, notification) => {
     console.log(`🔔 Sending notification to user:${userId}`, notification);
-    const room = `user:${userId}`;
-    const clients = io.sockets.adapter.rooms.get(room);
-    console.log(`   Target room: ${room}, Active clients: ${clients ? clients.size : 0}`);
-    io.to(room).emit("notification", notification);
+    pushNotification(userId, notification, io).catch(console.error);
   };
 
   const maxRetries = 5;

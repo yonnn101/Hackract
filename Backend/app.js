@@ -11,6 +11,7 @@ import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "./src/config/Swagger.js";
 // Import main router
 import apiRoutes from './src/routes.js';
+import notificationRoutes from './src/modules/Notification/notification.routes.js';
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/uploads', express.static('public/uploads'));
 
 // API Routes
 app.use('/api/v1', apiRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 
 // Example route (root)
 app.get("/", (req, res) => {
