@@ -4,6 +4,7 @@ import prisma from "../../database/prismaClient.js";
 import AppError from "../../utils/AppError.js";
 import { checkLegalSignature } from "../../middleware/legalSignature.middleware.js";
 import { logAction } from "../AuditLogs/auditLog.service.js";
+import crypto from "crypto";
 
 const router = express.Router();
 
@@ -184,7 +185,7 @@ router.patch("/:projectId", async (req, res, next) => {
     const isLead = project.leadPentesterId === req.user.id;
     const canManage = await isOrgAdminMember(project.organizationId, req.user);
     const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
-      where: { pentestId: projectId, userId: req.user.id, role: "PROJECT_ADMIN" }
+      where: { pentestId: projectId, userId: req.user.id, role: { in: ["PROJECT_ADMIN", "PROJECT_LEAD", "admin", "lead"] } }
     });
 
     if (!canManage && !isProjectAdmin && !isLead) {
@@ -217,6 +218,24 @@ router.patch("/:projectId", async (req, res, next) => {
             type: "INVITE_RECEIVED",
             title: "Project Closed",
             message: `The project: ${project.name} has been closed.`,
+            pentestId: projectId,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    // Notify organization admins if a project admin edits the project
+    if (!canManage && (isProjectAdmin || isLead) && req.app?.locals?.sendNotification) {
+      if (project.organizationId) {
+        const orgMembers = await prisma.organizationMember.findMany({
+          where: { organizationId: project.organizationId, role: { in: ['owner', 'admin'] } }
+        });
+        for (const member of orgMembers) {
+          req.app.locals.sendNotification(member.userId, {
+            type: "SYSTEM",
+            title: "Project Edited",
+            message: `Project Admin ${req.user.fullName || req.user.handle || 'A user'} updated the project: ${project.name}.`,
             pentestId: projectId,
             timestamp: new Date().toISOString()
           });
@@ -853,14 +872,22 @@ router.delete("/:projectId/collaborators/:userId", async (req, res, next) => {
 
     const canManage = await isOrgAdminMember(project.organizationId, req.user);
     const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
-      where: { pentestId: projectId, userId: req.user.id, role: "PROJECT_ADMIN" }
+      where: { pentestId: projectId, userId: req.user.id, role: { in: ["PROJECT_ADMIN", "PROJECT_LEAD", "admin", "lead"] } }
     });
 
     if (!canManage && !isProjectAdmin && userId !== req.user.id) {
-      throw new AppError("Only organization admin, project admin, or the collaborator themselves can ban collaborators", 403);
+      throw new AppError("Only organization admin, project admin, or the collaborator themselves can remove collaborators", 403);
     }
 
-    // Prevent removing the last admin? (Optional safety)
+    const collaborator = await prisma.pentestCollaborator.findUnique({
+      where: { pentestId_userId: { pentestId: projectId, userId } }
+    });
+
+    if (!collaborator) {
+      throw new AppError("Collaborator not found in this project", 404);
+    }
+
+    const isViewer = collaborator.role === "VIEWER";
 
     const bannedUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -873,42 +900,333 @@ router.delete("/:projectId/collaborators/:userId", async (req, res, next) => {
 
     if (req.app?.locals?.sendNotification && userId !== req.user.id) {
       req.app.locals.sendNotification(userId, {
-        type: 'INVITE_REJECTED',
-        title: 'Banned from Project',
-        message: `You have been banned from the project: ${project.name}.`,
+        type: isViewer ? 'SYSTEM' : 'INVITE_REJECTED',
+        title: isViewer ? 'Access Revoked' : 'Banned from Project',
+        message: isViewer 
+          ? `Your read-only viewer access to the project: ${project.name} has been revoked.`
+          : `You have been banned from the project: ${project.name}.`,
         pentestId: projectId,
         timestamp: new Date().toISOString()
       });
     }
 
-    // Notify organization admins/owners when a hacker is banned
-    if (req.app?.locals?.sendNotification && project.organizationId) {
-      const orgAdmins = await prisma.organizationMember.findMany({
+    // Notify organization admins AND project admins/leads
+    if (req.app?.locals?.sendNotification) {
+      const recipientIds = new Set();
+
+      if (project.organizationId) {
+        const orgAdmins = await prisma.organizationMember.findMany({
+          where: {
+            organizationId: project.organizationId,
+            role: { in: ["owner", "admin"] }
+          },
+          select: { userId: true }
+        });
+        orgAdmins.forEach(admin => recipientIds.add(admin.userId));
+      }
+
+      if (project.leadPentesterId) {
+        recipientIds.add(project.leadPentesterId);
+      }
+
+      const projAdmins = await prisma.pentestCollaborator.findMany({
         where: {
-          organizationId: project.organizationId,
-          role: { in: ["owner", "admin"] }
+          pentestId: projectId,
+          role: { in: ["PROJECT_ADMIN", "PROJECT_LEAD", "admin", "lead"] }
         },
         select: { userId: true }
       });
+      projAdmins.forEach(pa => recipientIds.add(pa.userId));
 
-      const banningUser = req.user.fullName || "An administrator";
-      const bannedUserName = bannedUser?.fullName || "a hacker";
+      recipientIds.delete(req.user.id);
+      recipientIds.delete(userId);
 
-      for (const admin of orgAdmins) {
-        if (admin.userId === req.user.id) continue; // Don't notify the person who banned them
-        req.app.locals.sendNotification(admin.userId, {
-          type: 'INVITE_REJECTED',
-          title: 'Hacker Banned from Project',
-          message: `${banningUser} banned ${bannedUserName} from the project: ${project.name}.`,
+      const actorName = req.user.fullName || req.user.handle || "An administrator";
+      const targetName = bannedUser?.fullName || "a collaborator";
+
+      for (const recipientId of recipientIds) {
+        req.app.locals.sendNotification(recipientId, {
+          type: isViewer ? 'SYSTEM' : 'INVITE_REJECTED',
+          title: isViewer ? 'Viewer Removed from Project' : 'Hacker Banned from Project',
+          message: isViewer
+            ? `${actorName} revoked viewer access for ${targetName} on project: ${project.name}.`
+            : `${actorName} banned hacker ${targetName} from the project: ${project.name}.`,
           pentestId: projectId,
           timestamp: new Date().toISOString()
         });
       }
     }
 
-    await logAction("HACKER_BANNED", req.user.id, { pentestId: projectId, bannedUserId: userId }, req);
+    await logAction(isViewer ? "VIEWER_REMOVED" : "HACKER_BANNED", req.user.id, { pentestId: projectId, targetUserId: userId }, req);
 
-    res.json({ success: true, message: "Hacker banned successfully from the project" });
+    res.json({ success: true, message: isViewer ? "Viewer removed successfully" : "Hacker banned successfully from the project" });
+  } catch (error) {
+    next(error);
+  }
+});
+// Add Viewer Route
+router.post("/:projectId/viewers", async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) throw new AppError("userId is required", 400);
+
+    const project = await prisma.pentest.findUnique({ where: { id: projectId } });
+    if (!project) throw new AppError("Project not found", 404);
+
+    const canManage = await isOrgAdminMember(project.organizationId, req.user);
+    const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
+      where: { pentestId: projectId, userId: req.user.id, role: { in: ["PROJECT_ADMIN", "PROJECT_LEAD", "admin", "lead"] } }
+    });
+    const isCollaborator = await prisma.pentestCollaborator.findFirst({
+      where: { pentestId: projectId, userId: req.user.id, role: { not: "VIEWER" } }
+    });
+    const isLead = project.leadPentesterId === req.user.id;
+
+    if (!canManage && !isProjectAdmin && !isLead && !isCollaborator) {
+      throw new AppError("Only organization admins, project admins, or project collaborators can add viewers", 403);
+    }
+
+    const collab = await prisma.pentestCollaborator.create({
+      data: {
+        pentestId: projectId,
+        userId: userId,
+        role: "VIEWER",
+        canEditFindings: false,
+        canManageSessions: false
+      }
+    });
+
+    // Notify the viewer themselves
+    if (req.app?.locals?.sendNotification) {
+      req.app.locals.sendNotification(userId, {
+        type: "SYSTEM",
+        title: "Project Access Granted",
+        message: `You have been granted read-only (viewer) access to project: ${project.name}. You can now view the workspace.`,
+        pentestId: projectId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Notify organization admins AND project admins/leads
+    if (req.app?.locals?.sendNotification) {
+      const recipientIds = new Set();
+
+      if (project.organizationId) {
+        const orgAdmins = await prisma.organizationMember.findMany({
+          where: { organizationId: project.organizationId, role: { in: ["owner", "admin"] } },
+          select: { userId: true }
+        });
+        orgAdmins.forEach(admin => recipientIds.add(admin.userId));
+      }
+
+      if (project.leadPentesterId) {
+        recipientIds.add(project.leadPentesterId);
+      }
+
+      const projAdmins = await prisma.pentestCollaborator.findMany({
+        where: {
+          pentestId: projectId,
+          role: { in: ["PROJECT_ADMIN", "PROJECT_LEAD", "admin", "lead"] }
+        },
+        select: { userId: true }
+      });
+      projAdmins.forEach(pa => recipientIds.add(pa.userId));
+
+      recipientIds.delete(req.user.id);
+      recipientIds.delete(userId);
+
+      const addedByName = req.user.fullName || req.user.handle || "A project admin";
+      const addedUser = await prisma.user.findUnique({ where: { id: userId }, select: { fullName: true, handle: true } });
+      const addedUserName = addedUser?.fullName || addedUser?.handle || "a user";
+
+      for (const recipientId of recipientIds) {
+        req.app.locals.sendNotification(recipientId, {
+          type: "SYSTEM",
+          title: "Viewer Added to Project",
+          message: `${addedByName} granted read-only viewer access to ${addedUserName} for project: ${project.name}.`,
+          pentestId: projectId,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    res.json({ success: true, data: collab, message: "Viewer added successfully" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+// Generate Shareable Link
+router.post("/:projectId/share", async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const project = await prisma.pentest.findUnique({ where: { id: projectId } });
+    if (!project) throw new AppError("Project not found", 404);
+
+    const canManage = await isOrgAdminMember(project.organizationId, req.user);
+    const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
+      where: { pentestId: projectId, userId: req.user.id, role: { in: ["PROJECT_ADMIN", "PROJECT_LEAD", "admin", "lead"] } }
+    });
+    const isCollaborator = await prisma.pentestCollaborator.findFirst({
+      where: { pentestId: projectId, userId: req.user.id, role: { not: "VIEWER" } }
+    });
+    const isLead = project.leadPentesterId === req.user.id;
+
+    if (!canManage && !isProjectAdmin && !isLead && !isCollaborator) {
+      throw new AppError("Only organization admins, project admins, or project collaborators can generate shareable links", 403);
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+
+    const link = await prisma.pentestShareLink.create({
+      data: {
+        pentestId: projectId,
+        token: token,
+        createdBy: req.user.id
+      }
+    });
+
+    // Notify organization admins if a project admin generates a share link
+    if (!canManage && (isProjectAdmin || project.leadPentesterId === req.user.id) && project.organizationId && req.app?.locals?.sendNotification) {
+      const orgAdmins = await prisma.organizationMember.findMany({
+        where: { organizationId: project.organizationId, role: { in: ["owner", "admin"] } }
+      });
+      for (const admin of orgAdmins) {
+        req.app.locals.sendNotification(admin.userId, {
+          type: "SYSTEM",
+          title: "Project Shared",
+          message: `Project Admin ${req.user.fullName || req.user.handle || 'A user'} generated a read-only shareable link for project: ${project.name}.`,
+          pentestId: projectId,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    res.json({ success: true, data: link, message: "Shareable link generated" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Resolve Shareable Link
+router.get("/share/:token", async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const link = await prisma.pentestShareLink.findUnique({ where: { token } });
+
+    if (!link) throw new AppError("Invalid or expired shareable link", 404);
+    if (link.isRevoked) throw new AppError("This link has been revoked", 403);
+
+    // Track views
+    await prisma.pentestShareLink.update({
+      where: { id: link.id },
+      data: { viewCount: { increment: 1 } }
+    });
+
+    const project = await prisma.pentest.findUnique({
+      where: { id: link.pentestId },
+      include: {
+        findings: true,
+      }
+    });
+
+    res.json({ success: true, data: project, message: "Project accessed via shareable link" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get all share links for a project
+router.get("/:projectId/share", async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const project = await prisma.pentest.findUnique({ where: { id: projectId } });
+    if (!project) throw new AppError("Project not found", 404);
+
+    const canManage = await isOrgAdminMember(project.organizationId, req.user);
+    const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
+      where: { pentestId: projectId, userId: req.user.id, role: { in: ["PROJECT_ADMIN", "PROJECT_LEAD", "admin", "lead"] } }
+    });
+    const isCollaborator = await prisma.pentestCollaborator.findFirst({
+      where: { pentestId: projectId, userId: req.user.id, role: { not: "VIEWER" } }
+    });
+    const isLead = project.leadPentesterId === req.user.id;
+
+    if (!canManage && !isProjectAdmin && !isLead && !isCollaborator) {
+      throw new AppError("Only organization admins, project admins, or project collaborators can view shareable links", 403);
+    }
+
+    const links = await prisma.pentestShareLink.findMany({
+      where: { pentestId: projectId, isRevoked: false },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ success: true, data: links, message: "Shareable links fetched" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Revoke all share links for a project
+router.delete("/:projectId/share", async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const project = await prisma.pentest.findUnique({ where: { id: projectId } });
+    if (!project) throw new AppError("Project not found", 404);
+
+    const canManage = await isOrgAdminMember(project.organizationId, req.user);
+    const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
+      where: { pentestId: projectId, userId: req.user.id, role: { in: ["PROJECT_ADMIN", "PROJECT_LEAD", "admin", "lead"] } }
+    });
+    const isCollaborator = await prisma.pentestCollaborator.findFirst({
+      where: { pentestId: projectId, userId: req.user.id, role: { not: "VIEWER" } }
+    });
+    const isLead = project.leadPentesterId === req.user.id;
+
+    if (!canManage && !isProjectAdmin && !isLead && !isCollaborator) {
+      throw new AppError("Only organization admins, project admins, or project collaborators can revoke shareable links", 403);
+    }
+
+    await prisma.pentestShareLink.updateMany({
+      where: { pentestId: projectId, isRevoked: false },
+      data: { isRevoked: true }
+    });
+
+    res.json({ success: true, message: "All shareable links revoked" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Revoke a specific share link
+router.delete("/:projectId/share/:linkId", async (req, res, next) => {
+  try {
+    const { projectId, linkId } = req.params;
+    const project = await prisma.pentest.findUnique({ where: { id: projectId } });
+    if (!project) throw new AppError("Project not found", 404);
+
+    const canManage = await isOrgAdminMember(project.organizationId, req.user);
+    const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
+      where: { pentestId: projectId, userId: req.user.id, role: { in: ["PROJECT_ADMIN", "PROJECT_LEAD", "admin", "lead"] } }
+    });
+    const isCollaborator = await prisma.pentestCollaborator.findFirst({
+      where: { pentestId: projectId, userId: req.user.id, role: { not: "VIEWER" } }
+    });
+    const isLead = project.leadPentesterId === req.user.id;
+
+    if (!canManage && !isProjectAdmin && !isLead && !isCollaborator) {
+      throw new AppError("Only organization admins, project admins, or project collaborators can revoke shareable links", 403);
+    }
+
+    await prisma.pentestShareLink.update({
+      where: { id: linkId },
+      data: { isRevoked: true }
+    });
+
+    res.json({ success: true, message: "Shareable link revoked" });
   } catch (error) {
     next(error);
   }

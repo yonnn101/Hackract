@@ -762,3 +762,15 @@ model Notification {
   @@index([isRead])
 }
 
+model PentestShareLink {
+  id             String   @id @default(uuid())
+  pentestId      String
+  token          String   @unique
+  createdBy      String
+  isRevoked      Boolean  @default(false)
+  viewCount      Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([pentestId])
+  @@index([token])
+}
