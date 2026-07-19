@@ -32,6 +32,7 @@ model User {
   emailVerificationTokens     EmailVerificationToken[]
   findingsReported            Finding[]                    @relation("FindingReporter")
   findingComments             FindingComment[]
+  notifications               Notification[]
   reviewedHackerProfiles      HackerProfile[]              @relation("HackerProfileReviewedBy")
   hackerProfile               HackerProfile?
   sentMessages                Message[]                    @relation("MessageSender")
@@ -742,3 +743,20 @@ enum ProjectInvitationStatus {
   REVOKED
   EXPIRED
 }
+
+model Notification {
+  id             String   @id @default(uuid())
+  userId         String
+  type           String   // CHAT_MESSAGE, INVITATION, SYSTEM
+  title          String
+  message        String
+  conversationId String?
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+}
+
