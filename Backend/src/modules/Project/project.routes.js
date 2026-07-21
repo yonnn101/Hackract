@@ -503,9 +503,14 @@ router.post("/:projectId/hackers", async (req, res, next) => {
     const project = await prisma.pentest.findUnique({ where: { id: projectId } });
     if (!project) throw new AppError("Project not found", 404);
 
+    const isLead = project.leadPentesterId === req.user.id;
     const canManage = await isOrgAdminMember(project.organizationId, req.user);
-    if (!canManage) {
-      throw new AppError("Only organization owner/admin can add hackers", 403);
+    const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
+      where: { pentestId: projectId, userId: req.user.id, role: "PROJECT_ADMIN" }
+    });
+
+    if (!canManage && !isProjectAdmin && !isLead) {
+      throw new AppError("Only organization owner/admin, project admin, or project lead can add hackers", 403);
     }
 
     await prisma.pentestCollaborator.createMany({
@@ -572,13 +577,14 @@ router.get("/:projectId/applicants", async (req, res, next) => {
     const project = await prisma.pentest.findUnique({ where: { id: projectId } });
     if (!project) throw new AppError("Project not found", 404);
 
+    const isLead = project.leadPentesterId === req.user.id;
     const canManage = await isOrgAdminMember(project.organizationId, req.user);
     const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
       where: { pentestId: projectId, userId: req.user.id, role: "PROJECT_ADMIN" }
     });
 
-    if (!canManage && !isProjectAdmin) {
-      throw new AppError("Only organization admin or project admin can view applicants", 403);
+    if (!canManage && !isProjectAdmin && !isLead) {
+      throw new AppError("Only organization admin, project admin, or project lead can view applicants", 403);
     }
 
     const applicants = await prisma.pentestCollaborator.findMany({
@@ -603,13 +609,14 @@ router.post("/:projectId/hire", async (req, res, next) => {
     const project = await prisma.pentest.findUnique({ where: { id: projectId } });
     if (!project) throw new AppError("Project not found", 404);
 
+    const isLead = project.leadPentesterId === req.user.id;
     const canManage = await isOrgAdminMember(project.organizationId, req.user);
     const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
       where: { pentestId: projectId, userId: req.user.id, role: "PROJECT_ADMIN" }
     });
 
-    if (!canManage && !isProjectAdmin) {
-      throw new AppError("Only organization admin or project admin can hire hackers", 403);
+    if (!canManage && !isProjectAdmin && !isLead) {
+      throw new AppError("Only organization admin, project admin, or project lead can hire hackers", 403);
     }
 
     await prisma.pentestCollaborator.update({
@@ -634,17 +641,18 @@ router.get("/:projectId/activity", async (req, res, next) => {
 
     const project = await prisma.pentest.findUnique({
       where: { id: projectId },
-      select: { organizationId: true },
+      select: { organizationId: true, leadPentesterId: true },
     });
     if (!project) throw new AppError("Project not found", 404);
 
+    const isLead = project.leadPentesterId === req.user.id;
     const canManage = await isOrgAdminMember(project.organizationId, req.user);
     const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
       where: { pentestId: projectId, userId: req.user.id, role: "PROJECT_ADMIN" }
     });
 
-    if (!canManage && !isProjectAdmin) {
-      throw new AppError("Unauthorized: Only project administrators or organization admins can view activity logs", 403);
+    if (!canManage && !isProjectAdmin && !isLead) {
+      throw new AppError("Unauthorized: Only project administrators, organization admins, or project leads can view activity logs", 403);
     }
 
     const logs = await prisma.auditLog.findMany({
@@ -668,13 +676,14 @@ router.post("/:projectId/kickoff", async (req, res, next) => {
     const project = await prisma.pentest.findUnique({ where: { id: projectId } });
     if (!project) throw new AppError("Project not found", 404);
 
+    const isLead = project.leadPentesterId === req.user.id;
     const canManage = await isOrgAdminMember(project.organizationId, req.user);
     const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
       where: { pentestId: projectId, userId: req.user.id, role: "PROJECT_ADMIN" }
     });
 
-    if (!canManage && !isProjectAdmin) {
-      throw new AppError("Only organization admin or project admin can perform kickoff", 403);
+    if (!canManage && !isProjectAdmin && !isLead) {
+      throw new AppError("Only organization admin, project admin, or project lead can perform kickoff", 403);
     }
 
     await prisma.pentest.update({
@@ -870,13 +879,14 @@ router.delete("/:projectId/collaborators/:userId", async (req, res, next) => {
     const project = await prisma.pentest.findUnique({ where: { id: projectId } });
     if (!project) throw new AppError("Project not found", 404);
 
+    const isLead = project.leadPentesterId === req.user.id;
     const canManage = await isOrgAdminMember(project.organizationId, req.user);
     const isProjectAdmin = await prisma.pentestCollaborator.findFirst({
       where: { pentestId: projectId, userId: req.user.id, role: { in: ["PROJECT_ADMIN", "PROJECT_LEAD", "admin", "lead"] } }
     });
 
-    if (!canManage && !isProjectAdmin && userId !== req.user.id) {
-      throw new AppError("Only organization admin, project admin, or the collaborator themselves can remove collaborators", 403);
+    if (!canManage && !isProjectAdmin && !isLead && userId !== req.user.id) {
+      throw new AppError("Only organization admin, project admin, project owner, or the collaborator themselves can remove collaborators", 403);
     }
 
     const collaborator = await prisma.pentestCollaborator.findUnique({
