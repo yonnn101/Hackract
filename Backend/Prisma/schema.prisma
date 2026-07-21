@@ -707,6 +707,7 @@ enum FindingStatus {
   VALIDATED
   REOPENED
   ACCEPTED_RISK
+  CLOSED
 }
 
 enum RoleType {
