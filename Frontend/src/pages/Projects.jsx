@@ -27,6 +27,7 @@ const TABS = [
   { id: "ALL_ACCESS", label: "All Projects" },
   { id: "LOCAL_LABS", label: "Personal Labs" },
   { id: "MISSIONS", label: "Active Engagements" },
+  { id: "SHARED", label: "Shared with Me" },
   { id: "APPLICATIONS", label: "Sent Proposals" },
   { id: "INBOUND_REQS", label: "Pending Invitations" }
 ];
@@ -55,6 +56,56 @@ const RoleBadge = ({ role }) => (
     }`}>
     {role === 'LEAD' ? 'Lead' : 'Contributor'}
   </span>
+);
+
+// Shared Project Card (Read-Only Viewer styling)
+const SharedProjectCard = ({ project, onOpen, index }) => (
+  <motion.div
+    initial={{ opacity: 0, scale: 0.98 }}
+    animate={{ opacity: 1, scale: 1 }}
+    transition={{ delay: index * 0.05, duration: 0.3 }}
+    className="bg-[#050505] border border-sky-500/20 hover:border-sky-400/50 rounded-2xl p-6 group transition-all relative flex flex-col font-sans hover:shadow-[0_0_30px_rgba(56,189,248,0.08)] cursor-pointer"
+    onClick={() => onOpen(project.id)}
+  >
+    <div className="flex justify-between items-start mb-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <StatusBadge status={project.status} />
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold border text-sky-400 bg-sky-500/10 border-sky-500/30 uppercase tracking-wider">
+          <FiUser size={10} /> Read-Only Viewer
+        </span>
+      </div>
+      <div className="w-8 h-8 rounded-full bg-sky-500/10 group-hover:bg-sky-500/20 flex items-center justify-center transition-colors">
+        <FiBriefcase className="text-sky-400" />
+      </div>
+    </div>
+
+    <h3 className="text-lg font-bold text-white group-hover:text-sky-400 transition-colors mb-2 leading-snug">
+      {getProjectDisplayName(project)}
+    </h3>
+    <p className="text-xs text-sky-400/70 font-mono mb-3">
+      {project.organization?.name || "Shared Engagement / Personal Lab"}
+    </p>
+    <p className="text-sm text-gray-500 leading-relaxed line-clamp-2 mb-6">
+      {project.description || "Shared with you in read-only capacity. You can view scope and findings telemetry."}
+    </p>
+
+    <div className="mt-auto pt-4 border-t border-white/5 flex items-center justify-between mb-5">
+      <div className="flex items-center gap-2">
+        <div className="w-6 h-6 rounded-md bg-white/5 flex items-center justify-center text-gray-400">
+          <FiTarget size={12} />
+        </div>
+        <span className="text-[12px] text-gray-300 font-bold">{project.findings || project._count?.findings || 0} <span className="font-normal text-gray-500">Vulns</span></span>
+      </div>
+      <div className="flex items-center gap-1.5 text-[12px] font-medium text-gray-400">
+        <FiClock size={13} />
+        {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : "Shared Access"}
+      </div>
+    </div>
+
+    <div className="pt-2 text-[13px] font-bold text-sky-400 group-hover:text-sky-300 transition-colors flex items-center gap-1">
+      Enter Workspace (View Only) <FiChevronRight className="group-hover:translate-x-1 transition-transform" />
+    </div>
+  </motion.div>
 );
 
 // Personal Project Card (Hacker styling)
@@ -388,6 +439,7 @@ const Projects = () => {
 
   const [personalProjects, setPersonalProjects] = useState([]);
   const [orgProjects, setOrgProjects] = useState([]);
+  const [sharedProjects, setSharedProjects] = useState([]);
   const [appliedProjects, setAppliedProjects] = useState([]);
   const [pendingInvitations, setPendingInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -411,18 +463,28 @@ const Projects = () => {
       const allProjects = projRes.data?.data || [];
       const myInvites = invRes.data?.invitations || invRes.data || [];
 
-      setPersonalProjects(allProjects.filter(p => p.isPersonal));
-      
+      const myCollaboratorRole = (p) => {
+        const c = p.collaborators?.find((collab) => collab.userId === user?.id);
+        return c?.role;
+      };
+
+      setPersonalProjects(allProjects.filter(p => p.isPersonal && myCollaboratorRole(p) !== 'VIEWER'));
+
       setOrgProjects(allProjects.filter(p => {
         if (!p.organizationId) return false;
-        const myCollab = p.collaborators?.find(c => c.userId === user?.id);
-        return myCollab && myCollab.role !== "APPLICANT";
+        const role = myCollaboratorRole(p);
+        return role && role !== "APPLICANT" && role !== "VIEWER";
+      }));
+
+      setSharedProjects(allProjects.filter(p => {
+        const role = myCollaboratorRole(p);
+        return role === "VIEWER";
       }));
 
       setAppliedProjects(allProjects.filter(p => {
         if (!p.organizationId) return false;
-        const myCollab = p.collaborators?.find(c => c.userId === user?.id);
-        return myCollab && myCollab.role === "APPLICANT";
+        const role = myCollaboratorRole(p);
+        return role === "APPLICANT";
       }));
 
       setPendingInvitations(myInvites);
@@ -452,12 +514,25 @@ const Projects = () => {
   // Tab filtering
   const displayPersonal = activeTab === 'ALL_ACCESS' || activeTab === 'LOCAL_LABS';
   const displayOrg = activeTab === 'ALL_ACCESS' || activeTab === 'MISSIONS';
+  const displayShared = activeTab === 'ALL_ACCESS' || activeTab === 'SHARED';
   const displayPending = activeTab === 'ALL_ACCESS' || activeTab === 'INBOUND_REQS';
   const displayApplied = activeTab === 'ALL_ACCESS' || activeTab === 'APPLICATIONS';
 
-  const handleAccept = (id) => {
+  const handleAccept = async (id) => {
     const invite = pendingInvitations.find((inv) => inv.id === id);
     if (!invite) return;
+
+    if (invite.role === 'VIEWER' || !invite.agreementFileUrl) {
+      try {
+        await invitationService.respondToInvitation(invite.id, 'ACCEPTED');
+        toast.success("Read-only invitation accepted! Workspace acquired.");
+        loadData();
+      } catch (err) {
+        toast.error(err?.response?.data?.error || "Failed to accept invitation");
+      }
+      return;
+    }
+
     setActiveInvite(invite);
     setSignModalOpen(true);
   };
@@ -651,6 +726,33 @@ const Projects = () => {
                       orgName: p.organization?.name,
                       orgAvatar: p.organization?.avatar
                     }}
+                    index={i}
+                    onOpen={id => navigate(`/projects/${p.id}`)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Shared Projects Section */}
+        {displayShared && (
+          <section className="space-y-5">
+            <h2 className="text-sm font-bold text-gray-400 tracking-wider uppercase flex items-center gap-3">
+              <span className="w-2 h-2 rounded-full bg-sky-400" /> Shared Read-Only Projects
+            </h2>
+
+            {sharedProjects.length === 0 ? (
+              <div className="py-16 flex flex-col items-center justify-center gap-4 border-2 border-dashed border-white/5 bg-[#0a0a0a] rounded-3xl text-gray-500 text-sm">
+                <FiUser size={32} className="opacity-30 mb-2 text-sky-400" />
+                <p>No projects currently shared with you in read-only mode.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {sharedProjects.map((p, i) => (
+                  <SharedProjectCard
+                    key={p.id}
+                    project={p}
                     index={i}
                     onOpen={id => navigate(`/projects/${p.id}`)}
                   />

@@ -221,7 +221,10 @@ export const respondToInvitation = async (invitationId, hackerId, { status, sign
                 data: {
                     pentestId: invitation.pentestId,
                     userId: hackerId,
-                    role: 'HACKER',
+                    role: invitation.role || 'HACKER',
+                    canViewFindings: invitation.canViewFindings ?? true,
+                    canViewTeam: invitation.canViewTeam ?? true,
+                    canViewWorkflow: invitation.canViewWorkflow ?? true,
                 },
             });
         }

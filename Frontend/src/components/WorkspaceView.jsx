@@ -220,22 +220,44 @@ const WorkspaceView = ({ projectId, onBack }) => {
     );
   }, [user, project, isViewer]);
 
+  const myCollaborator = useMemo(() => {
+    return project?.collaborators?.find((c) => c.userId === user?.id);
+  }, [project, user]);
+
   const tabs = useMemo(() => {
     if (!project) return [];
-    const base = project.isPersonal
+    let base = project.isPersonal
       ? ["workflow", "findings"]
       : ["overview", "workflow", "findings", "team"];
+
+    if (isViewer) {
+      const canViewFindings = myCollaborator ? myCollaborator.canViewFindings !== false : true;
+      const canViewTeam = myCollaborator ? myCollaborator.canViewTeam !== false : true;
+      const canViewWorkflow = myCollaborator ? myCollaborator.canViewWorkflow !== false : true;
+
+      base = ["overview"];
+      if (canViewWorkflow) base.push("workflow");
+      if (canViewFindings) base.push("findings");
+      if (canViewTeam && !project.isPersonal) base.push("team");
+    }
+
     if (canManage) {
       base.push("settings");
     }
     return base;
-  }, [project, canManage]);
+  }, [project, canManage, isViewer, myCollaborator]);
 
   const [activeTab, setActiveTab] = useState(() => {
     const queryTab = searchParams.get("tab");
     if (queryTab && tabs.includes(queryTab)) return queryTab;
     return project?.isPersonal ? "workflow" : "overview";
   });
+
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.includes(activeTab)) {
+      setActiveTab(tabs[0]);
+    }
+  }, [tabs, activeTab]);
 
   const [targetDomains, setTargetDomains] = useState("");
   const [ipRanges, setIpRanges] = useState("");
@@ -249,6 +271,16 @@ const WorkspaceView = ({ projectId, onBack }) => {
   const [isAddingViewer, setIsAddingViewer] = useState(false);
   const [shareLinks, setShareLinks] = useState([]);
   const [isRevoking, setIsRevoking] = useState(false);
+
+  // Link sharing checkboxes state
+  const [linkShareFindings, setLinkShareFindings] = useState(true);
+  const [linkShareTeam, setLinkShareTeam] = useState(true);
+  const [linkShareWorkflow, setLinkShareWorkflow] = useState(true);
+
+  // Email viewer invitation checkboxes state
+  const [emailShareFindings, setEmailShareFindings] = useState(true);
+  const [emailShareTeam, setEmailShareTeam] = useState(true);
+  const [emailShareWorkflow, setEmailShareWorkflow] = useState(true);
 
   useEffect(() => {
     if (project) {
@@ -317,9 +349,17 @@ const WorkspaceView = ({ projectId, onBack }) => {
   };
 
   const handleGenerateShareLink = async () => {
+    if (!linkShareFindings && !linkShareTeam && !linkShareWorkflow) {
+      toast.error("You must select at least one section (Findings, Team, or Workflow) to share.");
+      return;
+    }
     setIsSharing(true);
     try {
-      const res = await api.post(`/projects/${projectId}/share`);
+      const res = await api.post(`/projects/${projectId}/share`, {
+        canViewFindings: linkShareFindings,
+        canViewTeam: linkShareTeam,
+        canViewWorkflow: linkShareWorkflow
+      });
       if (res.data?.success) {
         toast.success("Shareable link generated!");
         loadShareLinks();
@@ -365,6 +405,10 @@ const WorkspaceView = ({ projectId, onBack }) => {
   const handleAddViewer = async (e) => {
     e.preventDefault();
     if (!viewerEmail.trim()) return;
+    if (!emailShareFindings && !emailShareTeam && !emailShareWorkflow) {
+      toast.error("You must select at least one section (Findings, Team, or Workflow) to share.");
+      return;
+    }
     setIsAddingViewer(true);
     try {
       const { data } = await api.get(`/chat/users/search?q=${encodeURIComponent(viewerEmail)}`);
@@ -376,16 +420,19 @@ const WorkspaceView = ({ projectId, onBack }) => {
       }
       
       const res = await api.post(`/projects/${projectId}/viewers`, {
-        userId: targetUser.id
+        userId: targetUser.id,
+        canViewFindings: emailShareFindings,
+        canViewTeam: emailShareTeam,
+        canViewWorkflow: emailShareWorkflow
       });
       if (res.data?.success) {
-        toast.success("Viewer added successfully!");
+        toast.success("Read-only invitation sent to viewer!");
         setViewerEmail("");
         loadProject();
       }
     } catch (err) {
       console.error(err);
-      toast.error("Failed to add viewer: " + (err.response?.data?.error || err.message));
+      toast.error("Failed to invite viewer: " + (err.response?.data?.error || err.message));
     } finally {
       setIsAddingViewer(false);
     }
@@ -1118,6 +1165,42 @@ const WorkspaceView = ({ projectId, onBack }) => {
                     </div>
                   )}
                   
+                  {/* Section Selection Checkboxes for Share Link */}
+                  <div className="space-y-2 bg-[#0f1115] border border-white/5 p-4 rounded-2xl">
+                    <label className="text-[10px] font-black text-white/50 uppercase tracking-widest block font-mono">
+                      Sections to Share (At least one required)
+                    </label>
+                    <div className="flex flex-wrap gap-4 text-xs font-mono text-white/80 pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer hover:text-[#00ff88]">
+                        <input
+                          type="checkbox"
+                          checked={linkShareFindings}
+                          onChange={(e) => setLinkShareFindings(e.target.checked)}
+                          className="rounded accent-[#00ff88]"
+                        />
+                        <span>Findings</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer hover:text-[#00ff88]">
+                        <input
+                          type="checkbox"
+                          checked={linkShareTeam}
+                          onChange={(e) => setLinkShareTeam(e.target.checked)}
+                          className="rounded accent-[#00ff88]"
+                        />
+                        <span>Team</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer hover:text-[#00ff88]">
+                        <input
+                          type="checkbox"
+                          checked={linkShareWorkflow}
+                          onChange={(e) => setLinkShareWorkflow(e.target.checked)}
+                          className="rounded accent-[#00ff88]"
+                        />
+                        <span>Workflow</span>
+                      </label>
+                    </div>
+                  </div>
+
                   <button
                     onClick={handleGenerateShareLink}
                     disabled={isSharing}
@@ -1127,14 +1210,50 @@ const WorkspaceView = ({ projectId, onBack }) => {
                   </button>
                 </div>
 
-                {/* Viewer addition */}
+                {/* Viewer addition & active viewers management */}
                 <div className="bg-black/70 backdrop-blur-md border border-white/10 p-8 rounded-4xl space-y-6">
                   <h3 className="text-xs font-black text-white/40 uppercase tracking-[0.2em] flex items-center gap-3">
                     <FiUsers className="text-[#00ff88]" /> Invite Show-Only Viewer
                   </h3>
                   <p className="text-xs text-white/60 leading-relaxed font-mono">
-                    Grant read-only access to another registered operative by inputting their registered email address or handle.
+                    Grant read-only access to another registered operative by inputting their registered email address or handle. An invitation will be sent for them to accept.
                   </p>
+
+                  {/* Section Selection Checkboxes for Email Invitation */}
+                  <div className="space-y-2 bg-[#0f1115] border border-white/5 p-4 rounded-2xl">
+                    <label className="text-[10px] font-black text-white/50 uppercase tracking-widest block font-mono">
+                      Sections to Share (At least one required)
+                    </label>
+                    <div className="flex flex-wrap gap-4 text-xs font-mono text-white/80 pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer hover:text-[#00ff88]">
+                        <input
+                          type="checkbox"
+                          checked={emailShareFindings}
+                          onChange={(e) => setEmailShareFindings(e.target.checked)}
+                          className="rounded accent-[#00ff88]"
+                        />
+                        <span>Findings</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer hover:text-[#00ff88]">
+                        <input
+                          type="checkbox"
+                          checked={emailShareTeam}
+                          onChange={(e) => setEmailShareTeam(e.target.checked)}
+                          className="rounded accent-[#00ff88]"
+                        />
+                        <span>Team</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer hover:text-[#00ff88]">
+                        <input
+                          type="checkbox"
+                          checked={emailShareWorkflow}
+                          onChange={(e) => setEmailShareWorkflow(e.target.checked)}
+                          className="rounded accent-[#00ff88]"
+                        />
+                        <span>Workflow</span>
+                      </label>
+                    </div>
+                  </div>
 
                   <form onSubmit={handleAddViewer} className="flex gap-2">
                     <input
@@ -1153,6 +1272,45 @@ const WorkspaceView = ({ projectId, onBack }) => {
                       {isAddingViewer ? "..." : "Add"}
                     </button>
                   </form>
+
+                  {/* Active Read-Only Viewers List */}
+                  {project.collaborators?.filter(c => c.role === 'VIEWER').length > 0 && (
+                    <div className="pt-4 border-t border-white/5 space-y-3">
+                      <h4 className="text-[10px] font-black text-sky-400 uppercase tracking-widest font-mono">
+                        Active Read-Only Viewers ({project.collaborators.filter(c => c.role === 'VIEWER').length})
+                      </h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                        {project.collaborators.filter(c => c.role === 'VIEWER').map((viewer) => (
+                          <div key={viewer.id} className="bg-[#0f1115] border border-white/5 p-3 rounded-xl flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+                              <span className="text-xs text-white font-medium truncate">
+                                {viewer.user?.fullName || viewer.user?.email}
+                              </span>
+                              {viewer.user?.handle && (
+                                <span className="text-[10px] text-white/40 font-mono">@{viewer.user.handle}</span>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleRemoveMember(viewer.userId, 'VIEWER')}
+                              className="px-3 py-1 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white text-[9px] rounded-lg font-mono uppercase tracking-widest transition-all whitespace-nowrap"
+                              title="Revoke user's viewer access permanently"
+                            >
+                              Revoke Access
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-white/5 border border-white/5 p-4 rounded-2xl text-[10px] text-white/40 font-mono leading-relaxed">
+                    💡 <span className="text-white/60 font-bold">Access Revocation Guide:</span>
+                    <ul className="list-disc pl-4 mt-1 space-y-1">
+                      <li>Revoking a <span className="text-rose-400 font-bold">Link</span> prevents new users from redeeming it.</li>
+                      <li>Revoking <span className="text-rose-400 font-bold">User Access</span> removes a viewer permanently, whether they joined via email invite or shareable link.</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>

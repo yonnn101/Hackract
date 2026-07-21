@@ -202,6 +202,9 @@ model PentestCollaborator {
   role              String   @default("collaborator")
   canEditFindings   Boolean  @default(false)
   canManageSessions Boolean  @default(false)
+  canViewFindings   Boolean  @default(true)
+  canViewTeam       Boolean  @default(true)
+  canViewWorkflow   Boolean  @default(true)
   addedAt           DateTime @default(now())
   pentest           Pentest  @relation(fields: [pentestId], references: [id], onDelete: Cascade)
   user              User     @relation(fields: [userId], references: [id])
@@ -600,6 +603,10 @@ model ProjectInvitation {
   id          String                  @id @default(uuid())
   status      ProjectInvitationStatus @default(PENDING)
   message     String?
+  role        String?                 @default("HACKER")
+  canViewFindings Boolean             @default(true)
+  canViewTeam     Boolean             @default(true)
+  canViewWorkflow Boolean             @default(true)
   pentestId   String
   hackerId    String
   invitedById String
@@ -763,13 +770,16 @@ model Notification {
 }
 
 model PentestShareLink {
-  id             String   @id @default(uuid())
-  pentestId      String
-  token          String   @unique
-  createdBy      String
-  isRevoked      Boolean  @default(false)
-  viewCount      Int      @default(0)
-  createdAt      DateTime @default(now())
+  id              String   @id @default(uuid())
+  pentestId       String
+  token           String   @unique
+  createdBy       String
+  canViewFindings Boolean  @default(true)
+  canViewTeam     Boolean  @default(true)
+  canViewWorkflow Boolean  @default(true)
+  isRevoked       Boolean  @default(false)
+  viewCount       Int      @default(0)
+  createdAt       DateTime @default(now())
 
   @@index([pentestId])
   @@index([token])

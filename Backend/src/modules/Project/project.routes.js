@@ -968,9 +968,13 @@ router.delete("/:projectId/collaborators/:userId", async (req, res, next) => {
 router.post("/:projectId/viewers", async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    const { userId } = req.body;
+    const { userId, canViewFindings = true, canViewTeam = true, canViewWorkflow = true } = req.body;
 
     if (!userId) throw new AppError("userId is required", 400);
+
+    if (!canViewFindings && !canViewTeam && !canViewWorkflow) {
+      throw new AppError("You must select at least one section (findings, team, or workflow) to share.", 400);
+    }
 
     const project = await prisma.pentest.findUnique({ where: { id: projectId } });
     if (!project) throw new AppError("Project not found", 404);
@@ -985,26 +989,32 @@ router.post("/:projectId/viewers", async (req, res, next) => {
     const isLead = project.leadPentesterId === req.user.id;
 
     if (!canManage && !isProjectAdmin && !isLead && !isCollaborator) {
-      throw new AppError("Only organization admins, project admins, or project collaborators can add viewers", 403);
+      throw new AppError("Only organization admins, project admins, or project collaborators can invite viewers", 403);
     }
 
-    const collab = await prisma.pentestCollaborator.create({
+    // Create a PENDING ProjectInvitation for the invited user
+    const invitation = await prisma.projectInvitation.create({
       data: {
         pentestId: projectId,
-        userId: userId,
+        hackerId: userId,
+        invitedById: req.user.id,
         role: "VIEWER",
-        canEditFindings: false,
-        canManageSessions: false
+        canViewFindings,
+        canViewTeam,
+        canViewWorkflow,
+        status: "PENDING",
+        message: `You have been invited to view project "${project.name}" in read-only mode.`
       }
     });
 
-    // Notify the viewer themselves
+    // Notify the invited viewer
     if (req.app?.locals?.sendNotification) {
       req.app.locals.sendNotification(userId, {
-        type: "SYSTEM",
-        title: "Project Access Granted",
-        message: `You have been granted read-only (viewer) access to project: ${project.name}. You can now view the workspace.`,
+        type: "INVITATION",
+        title: "Project Read-Only Invitation",
+        message: `You have been invited to view project "${project.name}" in read-only mode. Please accept the invitation to access the workspace.`,
         pentestId: projectId,
+        invitationId: invitation.id,
         timestamp: new Date().toISOString()
       });
     }
@@ -1012,7 +1022,6 @@ router.post("/:projectId/viewers", async (req, res, next) => {
     // Notify organization admins AND project admins/leads
     if (req.app?.locals?.sendNotification) {
       const recipientIds = new Set();
-
       if (project.organizationId) {
         const orgAdmins = await prisma.organizationMember.findMany({
           where: { organizationId: project.organizationId, role: { in: ["owner", "admin"] } },
@@ -1020,20 +1029,12 @@ router.post("/:projectId/viewers", async (req, res, next) => {
         });
         orgAdmins.forEach(admin => recipientIds.add(admin.userId));
       }
-
-      if (project.leadPentesterId) {
-        recipientIds.add(project.leadPentesterId);
-      }
-
+      if (project.leadPentesterId) recipientIds.add(project.leadPentesterId);
       const projAdmins = await prisma.pentestCollaborator.findMany({
-        where: {
-          pentestId: projectId,
-          role: { in: ["PROJECT_ADMIN", "PROJECT_LEAD", "admin", "lead"] }
-        },
+        where: { pentestId: projectId, role: { in: ["PROJECT_ADMIN", "PROJECT_LEAD", "admin", "lead"] } },
         select: { userId: true }
       });
       projAdmins.forEach(pa => recipientIds.add(pa.userId));
-
       recipientIds.delete(req.user.id);
       recipientIds.delete(userId);
 
@@ -1044,15 +1045,15 @@ router.post("/:projectId/viewers", async (req, res, next) => {
       for (const recipientId of recipientIds) {
         req.app.locals.sendNotification(recipientId, {
           type: "SYSTEM",
-          title: "Viewer Added to Project",
-          message: `${addedByName} granted read-only viewer access to ${addedUserName} for project: ${project.name}.`,
+          title: "Read-Only Invitation Sent",
+          message: `${addedByName} invited ${addedUserName} as a read-only viewer for project: ${project.name}. Pending acceptance.`,
           pentestId: projectId,
           timestamp: new Date().toISOString()
         });
       }
     }
 
-    res.json({ success: true, data: collab, message: "Viewer added successfully" });
+    res.json({ success: true, data: invitation, message: "Read-only invitation sent successfully" });
   } catch (error) {
     next(error);
   }
@@ -1063,6 +1064,12 @@ router.post("/:projectId/viewers", async (req, res, next) => {
 router.post("/:projectId/share", async (req, res, next) => {
   try {
     const { projectId } = req.params;
+    const { canViewFindings = true, canViewTeam = true, canViewWorkflow = true } = req.body || {};
+
+    if (!canViewFindings && !canViewTeam && !canViewWorkflow) {
+      throw new AppError("You must select at least one section (findings, team, or workflow) to share.", 400);
+    }
+
     const project = await prisma.pentest.findUnique({ where: { id: projectId } });
     if (!project) throw new AppError("Project not found", 404);
 
@@ -1085,7 +1092,10 @@ router.post("/:projectId/share", async (req, res, next) => {
       data: {
         pentestId: projectId,
         token: token,
-        createdBy: req.user.id
+        createdBy: req.user.id,
+        canViewFindings,
+        canViewTeam,
+        canViewWorkflow
       }
     });
 
@@ -1125,6 +1135,58 @@ router.get("/share/:token", async (req, res, next) => {
       where: { id: link.id },
       data: { viewCount: { increment: 1 } }
     });
+
+    // If user is authenticated, add them as a VIEWER collaborator on this project if not already added
+    if (req.user?.id) {
+      const existing = await prisma.pentestCollaborator.findUnique({
+        where: { pentestId_userId: { pentestId: link.pentestId, userId: req.user.id } }
+      });
+
+      if (!existing) {
+        await prisma.pentestCollaborator.create({
+          data: {
+            pentestId: link.pentestId,
+            userId: req.user.id,
+            role: "VIEWER",
+            canEditFindings: false,
+            canManageSessions: false,
+            canViewFindings: link.canViewFindings ?? true,
+            canViewTeam: link.canViewTeam ?? true,
+            canViewWorkflow: link.canViewWorkflow ?? true
+          }
+        });
+
+        // Notify organization / project admins
+        const projectInfo = await prisma.pentest.findUnique({
+          where: { id: link.pentestId },
+          select: { id: true, name: true, organizationId: true, leadPentesterId: true }
+        });
+
+        if (projectInfo && req.app?.locals?.sendNotification) {
+          const recipientIds = new Set();
+          if (projectInfo.organizationId) {
+            const orgAdmins = await prisma.organizationMember.findMany({
+              where: { organizationId: projectInfo.organizationId, role: { in: ["owner", "admin"] } },
+              select: { userId: true }
+            });
+            orgAdmins.forEach(a => recipientIds.add(a.userId));
+          }
+          if (projectInfo.leadPentesterId) recipientIds.add(projectInfo.leadPentesterId);
+          recipientIds.delete(req.user.id);
+
+          const userName = req.user.fullName || req.user.handle || "A user";
+          for (const recipientId of recipientIds) {
+            req.app.locals.sendNotification(recipientId, {
+              type: "SYSTEM",
+              title: "Shareable Link Redeemed",
+              message: `${userName} accessed project "${projectInfo.name}" via shareable link and was granted read-only viewer access.`,
+              pentestId: link.pentestId,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+      }
+    }
 
     const project = await prisma.pentest.findUnique({
       where: { id: link.pentestId },
